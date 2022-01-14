@@ -8,19 +8,15 @@ namespace WhatsOnLan.Core
 {
     public static class ArpHelpers
     {
-        public static void Resolve(IPAddress address)
+        public static bool Resolves(IPAddress address)
+        {
+            return Resolve(address) != null;
+        }
+
+        public static PhysicalAddress Resolve(IPAddress address)
         {
             ARP arper = new ARP(LibPcapLiveDeviceList.Instance.First(d => d.Description.Contains("Wireless-AC")));
-
-            PhysicalAddress mac = arper.Resolve(address);
-            if (mac == null)
-            {
-                Console.WriteLine(address + " timed out");
-            }
-            else
-            {
-                Console.WriteLine(address + " is at: " + mac);
-            }
+            return arper.Resolve(address);
         }
 
         public static void Resolve()
