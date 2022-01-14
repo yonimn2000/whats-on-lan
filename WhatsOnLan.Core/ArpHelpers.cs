@@ -10,12 +10,12 @@ namespace WhatsOnLan.Core
     {
         public static void Resolve(IPAddress address)
         {
-            ARP arper = new ARP(LibPcapLiveDeviceList.Instance.First(d => d.Name.Contains("Wireless-AC")));
+            ARP arper = new ARP(LibPcapLiveDeviceList.Instance.First(d => d.Description.Contains("Wireless-AC")));
 
             PhysicalAddress mac = arper.Resolve(address);
             if (mac == null)
             {
-                Console.WriteLine("Timeout, no mac address found for ip of " + address);
+                Console.WriteLine(address + " timed out");
             }
             else
             {

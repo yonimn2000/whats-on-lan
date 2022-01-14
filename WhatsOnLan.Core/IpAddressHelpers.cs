@@ -2,7 +2,7 @@
 
 namespace WhatsOnLan.Core
 {
-    internal static class IpAddressHelpers
+    public static class IpAddressHelpers
     {
         public static IPAddress GetBroadcastAddress(IPAddress address, IPAddress subnetMask)
         {
@@ -34,6 +34,35 @@ namespace WhatsOnLan.Core
                 broadcastAddress[i] = (byte)(ipAdressBytes[i] & (subnetMaskBytes[i]));
             }
             return new IPAddress(broadcastAddress);
+        }
+
+        public static IEnumerable<IPAddress> GetAllHostAddresses(IPAddress address, IPAddress subnetMask)
+        {
+            IPAddress network = GetNetworkAddress(address, subnetMask);
+            IPAddress broadcast = GetBroadcastAddress(address, subnetMask);
+
+            for (int ip = IpAdressToInt(network) + 1; ip < IpAdressToInt(broadcast); ip++)
+                yield return IntToIpAddress(ip);
+        }
+
+        private static int IpAdressToInt(IPAddress address)
+        {
+            byte[] bytes = address.GetAddressBytes();
+            
+            if (BitConverter.IsLittleEndian)
+                Array.Reverse(bytes);
+            
+            return BitConverter.ToInt32(bytes, 0);
+        }
+
+        private static IPAddress IntToIpAddress(int address)
+        {
+            byte[] bytes = BitConverter.GetBytes(address);
+
+            if (BitConverter.IsLittleEndian)
+                Array.Reverse(bytes);
+
+            return new IPAddress(bytes);
         }
     }
 }

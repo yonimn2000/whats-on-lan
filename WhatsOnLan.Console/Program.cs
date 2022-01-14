@@ -1,6 +1,11 @@
-﻿using WhatsOnLan.Core;
+﻿using System.Net;
+using WhatsOnLan.Core;
 
-// See https://aka.ms/new-console-template for more information
 Console.WriteLine("Hello, World!");
 
-ArpHelpers.Resolve();
+List<Task> tasks = new List<Task>();
+
+foreach (IPAddress ip in IpAddressHelpers.GetAllHostAddresses(IPAddress.Parse("192.168.1.60"), IPAddress.Parse("255.255.255.0")))
+    tasks.Add(Task.Run(() => ArpHelpers.Resolve(ip)));
+
+Task.WaitAll(tasks.ToArray());
