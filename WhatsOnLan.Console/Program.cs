@@ -1,17 +1,38 @@
-﻿using System.Net;
+﻿using SharpPcap.LibPcap;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using WhatsOnLan.Core;
 
-Console.WriteLine("Hello, World!");
+// Print out the available devices
+foreach (var dev in LibPcapLiveDeviceList.Instance.Where(d => d.Addresses.Count > 0))
+{
+    Console.WriteLine(dev.Description + " " +string.Join(',', dev.Addresses
+        .Where(a => a.Addr.type == Sockaddr.AddressTypes.AF_INET_AF_INET6
+        && a.Addr.ipAddress.AddressFamily == AddressFamily.InterNetwork).Select(a => a.Addr)));
+}
 
-List<Task> tasks = new List<Task>();
+LibPcapLiveDevice device = LibPcapLiveDeviceList.Instance.First(d => d.Description.Contains("Wireless-AC"));
+IEnumerable<IPAddress> ipAddresses = IpAddressHelpers.GetAllHostAddresses(IPAddress.Parse("192.168.1.60"), IPAddress.Parse("255.255.255.0"));
 
-foreach (IPAddress ip in IpAddressHelpers.GetAllHostAddresses(IPAddress.Parse("192.168.1.60"), IPAddress.Parse("255.255.255.0")))
-    tasks.Add(Task.Run(() =>
+while (true)
+{
+    Console.WriteLine("Getting macs...");
+    IDictionary<IPAddress, PhysicalAddress> macs = ArpResolver.GetMacAddresses(ipAddresses, device);
+    Console.WriteLine("Getting pings...");
+    IDictionary<IPAddress, bool> pings = Pinger.Ping(macs.Where(m => m.Value.Equals(PhysicalAddress.None)).Select(m => m.Key));
+    Console.WriteLine("Getting hostnames...");
+    IEnumerable<IPAddress> respondingHosts = macs.Where(m => !m.Value.Equals(PhysicalAddress.None)).Select(m => m.Key)
+        .Union(pings.Where(p => p.Value).Select(p => p.Key));
+
+    IDictionary<IPAddress, string> hostnames = HostnameResolver.GetHostnames(respondingHosts);
+
+    foreach (IPAddress ip in ipAddresses)
     {
-        bool resolves = ArpHelpers.Resolves(ip) || ArpHelpers.Resolves(ip) || ArpHelpers.Resolves(ip);
-        bool pings = PingHelpers.PingIpAddress(ip) || PingHelpers.PingIpAddress(ip) || PingHelpers.PingIpAddress(ip);
-        if (resolves || pings)
-            Console.WriteLine(ip + "\t" + (resolves ? "R" : "-") + (pings ? "P" : "-") + " " + HostnameHelpers.GetHostname(ip));
-    }));
-
-Task.WaitAll(tasks.ToArray());
+        bool doesResolve = !macs[ip].Equals(PhysicalAddress.None);
+        pings.TryGetValue(ip, out bool doesPing);
+        if (doesResolve || doesPing)
+            Console.WriteLine(ip + "\t" + (doesResolve ? "R" : "-") + (doesPing ? "P" : "-") + "\t" + hostnames[ip]);
+    }
+    Console.WriteLine();
+}
