@@ -7,7 +7,7 @@ using WhatsOnLan.Core;
 // Print out the available devices
 foreach (var dev in LibPcapLiveDeviceList.Instance.Where(d => d.Addresses.Count > 0))
 {
-    Console.WriteLine(dev.Description + " " +string.Join(',', dev.Addresses
+    Console.WriteLine(dev.Description + " " + string.Join(',', dev.Addresses
         .Where(a => a.Addr.type == Sockaddr.AddressTypes.AF_INET_AF_INET6
         && a.Addr.ipAddress.AddressFamily == AddressFamily.InterNetwork).Select(a => a.Addr)));
 }
@@ -15,7 +15,11 @@ foreach (var dev in LibPcapLiveDeviceList.Instance.Where(d => d.Addresses.Count 
 LibPcapLiveDevice device = LibPcapLiveDeviceList.Instance.First(d => d.Description.Contains("Wireless-AC"));
 IEnumerable<IPAddress> ipAddresses = IpAddressHelpers.GetAllHostAddresses(IPAddress.Parse("192.168.1.60"), IPAddress.Parse("255.255.255.0"));
 
-while (true)
+Console.WriteLine("Scanning " + ipAddresses.Count() + " devices...");
+foreach (IpScanResult result in NetworkScanner.ScanIpAddresses(ipAddresses, device).Where(r => r.IsOnline))
+    Console.WriteLine(result);
+
+/*while (true)
 {
     Console.WriteLine("Getting macs...");
     IDictionary<IPAddress, PhysicalAddress> macs = ArpResolver.GetMacAddresses(ipAddresses, device);
@@ -35,4 +39,4 @@ while (true)
             Console.WriteLine(ip + "\t" + (doesResolve ? "R" : "-") + (doesPing ? "P" : "-") + "\t" + hostnames[ip]);
     }
     Console.WriteLine();
-}
+}*/
