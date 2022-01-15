@@ -1,12 +1,13 @@
 ﻿using SharpPcap.LibPcap;
 using System.Net;
 using System.Net.NetworkInformation;
+using WhatsOnLan.Core.OUI;
 
 namespace WhatsOnLan.Core
 {
     public static class NetworkScanner
     {
-        public static async Task<IpScanResult> ScanIpAddress(IPAddress address, LibPcapLiveDevice device)
+        public static async Task<IpScanResult> ScanIpAddress(IPAddress address, LibPcapLiveDevice device, OuiMatcher? ouiMatcher = default)
         {
             IpScanResult scanResult = new();
             PhysicalAddress macAddress = await Task.Run(() => ArpResolver.GetMacAddress(address, device));
@@ -17,12 +18,13 @@ namespace WhatsOnLan.Core
                 scanResult.MacAddress = macAddress;
                 scanResult.RespondedToPing = await Pinger.Ping(address);
                 scanResult.Hostname = await HostnameResolver.GetHostname(address);
+                scanResult.Manufacturer = ouiMatcher?.Match(macAddress);
             }
 
             return scanResult;
         }
 
-        public static IEnumerable<IpScanResult> ScanIpAddresses(IEnumerable<IPAddress> addresses, LibPcapLiveDevice device)
+        public static IEnumerable<IpScanResult> ScanIpAddresses(IEnumerable<IPAddress> addresses, LibPcapLiveDevice device, OuiMatcher? ouiMatcher = default)
         {
             IDictionary<IPAddress, PhysicalAddress> macs = ArpResolver.GetMacAddresses(addresses, device);
             IDictionary<IPAddress, bool> pings = Pinger.Ping(addresses);
@@ -44,6 +46,7 @@ namespace WhatsOnLan.Core
                     scanResult.MacAddress = macAddress;
                     scanResult.RespondedToPing = pings[ip];
                     scanResult.Hostname = hostnames[ip];
+                    scanResult.Manufacturer = ouiMatcher?.Match(macAddress);
                 }
 
                 results.Add(scanResult);

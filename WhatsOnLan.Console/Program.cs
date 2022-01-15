@@ -3,6 +3,12 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using WhatsOnLan.Core;
+using WhatsOnLan.Core.OUI;
+
+string path = @"C:\Users\Yonatan\Downloads\oui.csv";
+//await OuiHelpers.DownloadOuiCsvFileAsync(path);
+Console.WriteLine("Reading OUI file...");
+OuiMatcher ouiMatcher = new OuiMatcher(OuiHelpers.ReadOuiCsvFileLines(path));
 
 // Print out the available devices
 foreach (var dev in LibPcapLiveDeviceList.Instance.Where(d => d.Addresses.Count > 0))
@@ -16,7 +22,7 @@ LibPcapLiveDevice device = LibPcapLiveDeviceList.Instance.First(d => d.Descripti
 IEnumerable<IPAddress> ipAddresses = IpAddressHelpers.GetAllHostAddresses(IPAddress.Parse("192.168.1.60"), IPAddress.Parse("255.255.255.0"));
 
 Console.WriteLine("Scanning " + ipAddresses.Count() + " devices...");
-foreach (IpScanResult result in NetworkScanner.ScanIpAddresses(ipAddresses, device).Where(r => r.IsOnline))
+foreach (IpScanResult result in NetworkScanner.ScanIpAddresses(ipAddresses, device, ouiMatcher).Where(r => r.IsOnline))
     Console.WriteLine(result);
 
 /*while (true)

@@ -10,10 +10,12 @@ namespace WhatsOnLan.Core
         public PhysicalAddress MacAddress { get; internal set; } = PhysicalAddress.None;
         public string Hostname { get; internal set; } = string.Empty;
         public bool RespondedToPing { get; internal set; } = false;
+        public string Manufacturer { get; set; } = string.Empty;
 
         public bool RespondedToArp => !MacAddress.Equals(PhysicalAddress.None);
         public bool IsOnline => RespondedToArp || RespondedToPing;
-        public bool HasHostname => Hostname.Length > 0;
+        public bool HasManufacturer => !string.IsNullOrWhiteSpace(Manufacturer);
+        public bool HasHostname => !string.IsNullOrWhiteSpace(Hostname);
 
         public override string ToString()
         {
@@ -24,21 +26,27 @@ namespace WhatsOnLan.Core
             {
                 if (RespondedToArp)
                 {
-                    stringBuilder.Append(' ');
+                    stringBuilder.Append('\t');
                     stringBuilder.Append(MacAddress);
                 }
 
                 if (HasHostname)
                 {
-                    stringBuilder.Append(' ');
+                    stringBuilder.Append('\t');
                     stringBuilder.Append(Hostname);
                 }
 
+                if (HasManufacturer)
+                {
+                    stringBuilder.Append('\t');
+                    stringBuilder.Append(Manufacturer);
+                }
+
                 if (RespondedToPing)
-                    stringBuilder.Append(" [Pings]");
+                    stringBuilder.Append("\t[Pings]");
             }
             else
-                stringBuilder.Append(" [Offline]");
+                stringBuilder.Append("\t[Offline]");
 
             return stringBuilder.ToString();
         }
