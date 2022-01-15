@@ -2,7 +2,7 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace WhatsOnLan.Core
+namespace WhatsOnLan.Core.Network
 {
     public static class HostnameResolver
     {

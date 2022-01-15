@@ -1,6 +1,7 @@
 ﻿using SharpPcap.LibPcap;
 using System.Net;
 using System.Net.NetworkInformation;
+using WhatsOnLan.Core.Network;
 using WhatsOnLan.Core.OUI;
 
 namespace WhatsOnLan.Core

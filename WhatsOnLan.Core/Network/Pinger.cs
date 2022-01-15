@@ -1,7 +1,7 @@
 ﻿using System.Net;
 using System.Net.NetworkInformation;
 
-namespace WhatsOnLan.Core
+namespace WhatsOnLan.Core.Network
 {
     public static class Pinger
     {
