@@ -12,13 +12,13 @@ namespace WhatsOnLan.Core
         public bool SendPings { get; set; } = true;
         public bool ResolveHostnames { get; set; } = true;
         public TimeSpan ArpTimeout { get; set; } = TimeSpan.FromSeconds(1);
-        public OuiMatcher OuiMatcher { get; }
+        public IOuiMatcher? OuiMatcher { get; set; }
+        
         private ISet<PcapNetworkInterface> Interfaces { get; }
 
-        public NetworkScanner(OuiMatcher ouiMatcher)
+        public NetworkScanner()
         {
             Interfaces = NetworkInterfaceHelpers.GetAllPcapNetworkInterfaces().DistinctBy(i => i.Network).ToHashSet();
-            OuiMatcher = ouiMatcher;
         }
 
         public async Task<IpScanResult> ScanIpAddressAsync(IPAddress address)
@@ -34,7 +34,7 @@ namespace WhatsOnLan.Core
                 if (SendPings)
                     scanResult.RespondedToPing = await Pinger.PingAsync(address);
                 scanResult.Hostname = await HostnameResolver.GetHostnameAsync(address);
-                scanResult.Manufacturer = OuiMatcher?.Match(macAddress);
+                scanResult.Manufacturer = OuiMatcher?.GetOrganizationName(macAddress);
             }
 
             return scanResult;
@@ -83,7 +83,7 @@ namespace WhatsOnLan.Core
                         scanResult.RespondedToPing = pings[ip];
                     if (ResolveHostnames)
                         scanResult.Hostname = hostnames[ip];
-                    scanResult.Manufacturer = OuiMatcher?.Match(macAddress);
+                    scanResult.Manufacturer = OuiMatcher?.GetOrganizationName(macAddress);
                 }
 
                 yield return scanResult;

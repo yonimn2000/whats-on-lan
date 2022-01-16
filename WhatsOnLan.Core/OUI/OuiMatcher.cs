@@ -2,7 +2,7 @@
 
 namespace WhatsOnLan.Core.OUI
 {
-    public class OuiMatcher
+    public class OuiMatcher : IOuiMatcher
     {
         private IReadOnlyDictionary<string, string> Matcher { get; set; }
 
@@ -21,9 +21,14 @@ namespace WhatsOnLan.Core.OUI
             Matcher = matcher;
         }
 
-        public string? Match(PhysicalAddress mac)
+        public string GetOrganizationName(PhysicalAddress macAddress)
         {
-            string assignment = mac.ToString().Substring(0, 6);
+            return GetOrganizationName(macAddress.ToString());
+        }
+
+        public string GetOrganizationName(string macAddress)
+        {
+            string assignment = macAddress.Substring(0, 6);
             return Matcher.ContainsKey(assignment) ? Matcher[assignment] : null;
         }
     }

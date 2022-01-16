@@ -5,13 +5,14 @@ string path = @"C:\Users\Yonatan\Downloads\oui.csv";
 //await OuiHelpers.DownloadOuiCsvFileAsync(path);
 
 Console.WriteLine("Reading OUI file...");
-OuiMatcher ouiMatcher = new OuiMatcher(OuiHelpers.ReadOuiCsvFileLines(path));
+IOuiMatcher ouiMatcher = new OuiMatcher(OuiHelpers.ReadOuiCsvFileLines(path));
 
 Console.WriteLine("Setting up scanner...");
-NetworkScanner networkScanner = new NetworkScanner(ouiMatcher)
+NetworkScanner networkScanner = new NetworkScanner()
 {
     SendPings = false,
-    ResolveHostnames = true
+    ResolveHostnames = true,
+    OuiMatcher = ouiMatcher
 };
 
 Console.WriteLine("Scanning...");
