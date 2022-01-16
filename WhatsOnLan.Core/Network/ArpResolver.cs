@@ -3,24 +3,25 @@ using SharpPcap;
 using SharpPcap.LibPcap;
 using System.Net;
 using System.Net.NetworkInformation;
-using System.Net.Sockets;
+using WhatsOnLan.Core.Hardware;
 
 namespace WhatsOnLan.Core.Network
 {
     public static class ArpResolver
     {
-        public static PhysicalAddress GetMacAddress(IPAddress address, LibPcapLiveDevice device, int timeoutMillis = 1000)
+        public static PhysicalAddress GetMacAddress(IPAddress address, PcapNetworkInterface networkInterface, TimeSpan timeout)
         {
-            return GetMacAddresses(new IPAddress[] { address }, device, timeoutMillis)[address];
+            return GetMacAddresses(new IPAddress[] { address }, networkInterface, timeout)[address];
         }
 
         public static IDictionary<IPAddress, PhysicalAddress> GetMacAddresses(
-            IEnumerable<IPAddress> ipAddresses, LibPcapLiveDevice device, int timeoutMillis = 1000)
+            IEnumerable<IPAddress> ipAddresses, PcapNetworkInterface networkInterface, TimeSpan timeout)
         {
             Dictionary<IPAddress, PhysicalAddress> resolutions = ipAddresses.ToDictionary(ip => ip, ip => PhysicalAddress.None);
+            LibPcapLiveDevice device = networkInterface.Device;
             PcapInterface pcapInterface = device.Interface;
-            IPAddress localIp = GetLocalIpAddress(pcapInterface);
-            PhysicalAddress localMac = GetLocalMacAddress(pcapInterface);
+            IPAddress localIp = networkInterface.IpAddress;
+            PhysicalAddress localMac = networkInterface.MacAddress;
             IEnumerable<Packet> requestPackets = ipAddresses.Select(ip => BuildRequest(ip, localMac, localIp));
             
             device.Open(mode: DeviceModes.Promiscuous, read_timeout: 20);
@@ -32,7 +33,7 @@ namespace WhatsOnLan.Core.Network
                 device.SendPacket(requestPacket);
 
             // Attempt to resolve the addresses with the current timeout.
-            DateTime timeoutDateTime = DateTime.Now.AddMilliseconds(timeoutMillis);
+            DateTime timeoutDateTime = DateTime.Now + timeout;
             while (DateTime.Now < timeoutDateTime)
             {
                 // Read the next packet from the network.
@@ -58,28 +59,6 @@ namespace WhatsOnLan.Core.Network
                 resolutions[localIp] = localMac;
 
             return resolutions;
-        }
-
-        private static PhysicalAddress GetLocalMacAddress(PcapInterface pcapInterface)
-        {
-            PhysicalAddress? localMAC = pcapInterface.Addresses
-                .FirstOrDefault(address => address.Addr.type == Sockaddr.AddressTypes.HARDWARE)?.Addr.hardwareAddress;
-
-            if (localMAC == null)
-                throw new InvalidOperationException("Unable to find local mac address");
-
-            return localMAC;
-        }
-
-        private static IPAddress GetLocalIpAddress(PcapInterface pcapInterface)
-        {
-            // Attempt to find an ipv4 address and make sure the address is IPv4.
-            foreach (PcapAddress address in pcapInterface.Addresses)
-                if (address.Addr.type == Sockaddr.AddressTypes.AF_INET_AF_INET6
-                    && address.Addr.ipAddress.AddressFamily == AddressFamily.InterNetwork)
-                        return address.Addr.ipAddress ?? IPAddress.Parse("127.0.0.1"); // Use localhost if no IPs.
-
-            return IPAddress.None;
         }
 
         private static Packet BuildRequest(IPAddress destinationIP, PhysicalAddress localMac, IPAddress localIP)

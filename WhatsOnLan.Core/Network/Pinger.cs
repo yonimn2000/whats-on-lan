@@ -12,7 +12,7 @@ namespace WhatsOnLan.Core.Network
             foreach (IPAddress ip in ipAddresses)
                 tasks.Add(Task.Run(async () =>
                 {
-                    pings[ip] = await Ping(ip);
+                    pings[ip] = await PingAsync(ip);
                 }));
 
             Task.WaitAll(tasks.ToArray());
@@ -20,7 +20,7 @@ namespace WhatsOnLan.Core.Network
             return pings;
         }
 
-        public static async Task<bool> Ping(IPAddress ip)
+        public static async Task<bool> PingAsync(IPAddress ip)
         {
             Ping pinger = new Ping();
 

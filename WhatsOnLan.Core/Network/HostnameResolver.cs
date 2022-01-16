@@ -13,7 +13,7 @@ namespace WhatsOnLan.Core.Network
             foreach (IPAddress ip in ipAddresses)
                 tasks.Add(Task.Run(async () =>
                 {
-                    resolutions[ip] = await GetHostname(ip);
+                    resolutions[ip] = await GetHostnameAsync(ip);
                 }));
 
             Task.WaitAll(tasks.ToArray());
@@ -21,7 +21,7 @@ namespace WhatsOnLan.Core.Network
             return resolutions;
         }
 
-        public static async Task<string> GetHostname(IPAddress address)
+        public static async Task<string> GetHostnameAsync(IPAddress address)
         {
             string hostname = string.Empty;
 

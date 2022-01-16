@@ -36,6 +36,11 @@ namespace WhatsOnLan.Core
             return new IPAddress(broadcastAddress);
         }
 
+        public static bool IsOnSameNetwork(IPAddress address1, IPAddress address2, IPAddress subnet)
+        {
+            return GetNetworkAddress(address1, subnet).Equals(GetNetworkAddress(address2, subnet));
+        }
+
         public static IEnumerable<IPAddress> GetAllHostAddresses(IPAddress address, IPAddress subnetMask)
         {
             IPAddress network = GetNetworkAddress(address, subnetMask);
