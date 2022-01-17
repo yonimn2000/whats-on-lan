@@ -30,16 +30,16 @@ namespace WhatsOnLan.Core
                     stringBuilder.Append(MacAddress);
                 }
 
-                if (HasHostname)
-                {
-                    stringBuilder.Append('\t');
-                    stringBuilder.Append(Hostname);
-                }
-
                 if (HasManufacturer)
                 {
                     stringBuilder.Append('\t');
                     stringBuilder.Append(Manufacturer);
+                }
+
+                if (HasHostname)
+                {
+                    stringBuilder.Append('\t');
+                    stringBuilder.Append(Hostname);
                 }
 
                 if (RespondedToPing)

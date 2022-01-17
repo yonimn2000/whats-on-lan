@@ -11,14 +11,14 @@ namespace WhatsOnLan.Core
     {
         public bool SendPings { get; set; } = true;
         public bool ResolveHostnames { get; set; } = true;
+        public bool StripDnsSuffix { get; set; } = true;
         public TimeSpan ArpTimeout { get; set; } = TimeSpan.FromSeconds(1);
         public IOuiMatcher? OuiMatcher { get; set; }
-        
-        private ISet<PcapNetworkInterface> Interfaces { get; }
+        public ICollection<PcapNetworkInterface> Interfaces { get; set; }
 
-        public NetworkScanner()
+        public NetworkScanner(ICollection<PcapNetworkInterface> interfaces)
         {
-            Interfaces = NetworkInterfaceHelpers.GetAllPcapNetworkInterfaces().DistinctBy(i => i.Network).ToHashSet();
+            Interfaces = interfaces; 
         }
 
         public async Task<IpScanResult> ScanIpAddressAsync(IPAddress address)
@@ -33,16 +33,16 @@ namespace WhatsOnLan.Core
                 scanResult.MacAddress = macAddress;
                 if (SendPings)
                     scanResult.RespondedToPing = await Pinger.PingAsync(address);
-                scanResult.Hostname = await HostnameResolver.GetHostnameAsync(address);
+                scanResult.Hostname = await HostnameResolver.GetHostnameAsync(address, StripDnsSuffix ? networkInterface.DnsSuffix : "");
                 scanResult.Manufacturer = OuiMatcher?.GetOrganizationName(macAddress);
             }
 
             return scanResult;
         }
 
-        public IEnumerable<IpScanResult> Scan() => Interfaces.SelectMany(i => ScanIpAddressesForInterface(i));
+        public IEnumerable<IpScanResult> Scan() => Interfaces.SelectMany(i => ScanInterface(i));
 
-        public IEnumerable<IpScanResult> ScanIpAddressesForInterface(PcapNetworkInterface networkInterface)
+        public IEnumerable<IpScanResult> ScanInterface(PcapNetworkInterface networkInterface)
         {
             Debug.WriteLine("Getting all IP addresses...");
             IEnumerable<IPAddress> addresses = networkInterface.GetAllReachableIpAddresses();
@@ -66,7 +66,7 @@ namespace WhatsOnLan.Core
             if (ResolveHostnames)
             {
                 Debug.WriteLine("Resolving all responding hostnames...");
-                hostnames = HostnameResolver.GetHostnames(respondingHosts);
+                hostnames = HostnameResolver.GetHostnames(respondingHosts, StripDnsSuffix ? networkInterface.DnsSuffix : "");
             }
 
             Debug.WriteLine("Generating scan results...");
