@@ -2,21 +2,35 @@
 
 namespace WhatsOnLan.Core.OUI
 {
+    /// <summary>
+    /// Represents an OUI matcher for matching MAC addresses to the corresponding organization name 
+    /// (NIC manufacturer) using the IEEE OUI dataset.
+    /// </summary>
     public class OuiMatcher : IOuiMatcher
     {
-        private IReadOnlyDictionary<string, string> Matcher { get; set; }
+        private IReadOnlyDictionary<string, string> Matcher { get; }
 
-        public OuiMatcher(string path) : this(OuiHelpers.ReadOuiCsvFileLines(path)) { }
+        /// <summary>
+        /// Initializes an instance of the <see cref="OuiMatcher"/> class that reads the OUI data from a file at
+        /// the given path. The given OUI CSV file must contain 'Assignment' and 'Organization Name' columns.
+        /// The CSV file must have a header row.
+        /// </summary>
+        /// <param name="path">The location of the OUI CSV file.</param>
+        public OuiMatcher(string path) : this(OuiCsvFileHelpers.ReadOuiCsvFileLines(path)) { }
 
-        public OuiMatcher(IEnumerable<OuiDataRow> ouiDataRows)
+        /// <summary>
+        /// Initializes an instance of the <see cref="OuiMatcher"/> class with the given <see cref="OuiAssignment"/> objects.
+        /// </summary>
+        /// <param name="ouiAssignments">The OUI Assignments to use when initialzing the new <see cref="OuiMatcher"/> object.</param>
+        public OuiMatcher(IEnumerable<OuiAssignment> ouiAssignments)
         {
             Dictionary<string, string> matcher = new Dictionary<string, string>();
-            foreach (OuiDataRow row in ouiDataRows)
+            foreach (OuiAssignment ouiAssignment in ouiAssignments)
             {
-                if (matcher.ContainsKey(row.Assignment))
-                    matcher[row.Assignment] += " OR" + row.Organization;
+                if (matcher.ContainsKey(ouiAssignment.Assignment))
+                    matcher[ouiAssignment.Assignment] += " OR" + ouiAssignment.Organization;
                 else
-                    matcher[row.Assignment] = row.Organization;
+                    matcher[ouiAssignment.Assignment] = ouiAssignment.Organization;
             }
             Matcher = matcher;
         }
@@ -29,7 +43,7 @@ namespace WhatsOnLan.Core.OUI
         public string GetOrganizationName(string macAddress)
         {
             string assignment = macAddress.Substring(0, 6);
-            return Matcher.ContainsKey(assignment) ? Matcher[assignment] : null;
+            return Matcher.ContainsKey(assignment) ? Matcher[assignment] : string.Empty;
         }
     }
 }

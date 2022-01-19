@@ -8,7 +8,7 @@ namespace WhatsOnLan.Core.Hardware
     public class NetworkInterfaceHelpers
     {
         /// <summary>
-        /// Gets all distinct active non-loopback interfaces as an 
+        /// Gets all distinct active non-loopback network interfaces as an 
         /// <see cref="IEnumerable{T}"/> of <see cref="PcapNetworkInterface"/> objects
         /// distinguished by their network addresses.
         /// </summary>
@@ -18,7 +18,7 @@ namespace WhatsOnLan.Core.Hardware
         }
 
         /// <summary>
-        /// Gets all active non-loopback interfaces as an 
+        /// Gets all active non-loopback network interfaces as an 
         /// <see cref="IEnumerable{T}"/> of <see cref="PcapNetworkInterface"/> objects.
         /// </summary>
         public static IEnumerable<PcapNetworkInterface> GetAllPcapNetworkInterfaces()
@@ -27,7 +27,7 @@ namespace WhatsOnLan.Core.Hardware
         }
 
         /// <summary>
-        /// Gets all active non-loopback interfaces.
+        /// Gets all active non-loopback network interfaces.
         /// </summary>
         private static IEnumerable<NetworkInterface> GetAllActiveInterfaces()
         {
