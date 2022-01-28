@@ -1,6 +1,6 @@
 ﻿using System.Net;
 
-namespace WhatsOnLan.Core
+namespace YonatanMankovich.WhatsOnLan.Core
 {
     /// <summary>
     /// Provides methods for working with <see cref="IPAddress"/>es.

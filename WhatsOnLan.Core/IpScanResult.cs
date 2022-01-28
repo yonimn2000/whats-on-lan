@@ -2,7 +2,7 @@
 using System.Net.NetworkInformation;
 using System.Text;
 
-namespace WhatsOnLan.Core
+namespace YonatanMankovich.WhatsOnLan.Core
 {
     /// <summary>
     /// Represents a network scan result per IP address.

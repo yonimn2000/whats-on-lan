@@ -2,7 +2,7 @@
 using System.Net;
 using System.Net.NetworkInformation;
 
-namespace WhatsOnLan.Core.Network
+namespace YonatanMankovich.WhatsOnLan.Core.Network
 {
     /// <summary>
     /// Provides mehtods for pinging <see cref="IPAddress"/>es.

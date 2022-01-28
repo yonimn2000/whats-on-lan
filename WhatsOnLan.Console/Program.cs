@@ -1,6 +1,6 @@
-﻿using WhatsOnLan.Core;
-using WhatsOnLan.Core.Hardware;
-using WhatsOnLan.Core.OUI;
+﻿using YonatanMankovich.WhatsOnLan.Core;
+using YonatanMankovich.WhatsOnLan.Core.Hardware;
+using YonatanMankovich.WhatsOnLan.Core.OUI;
 
 string ouiCsvFilePath = "OUI.csv";
 if (!File.Exists(ouiCsvFilePath))

@@ -1,15 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <GenerateDocumentationFile>True</GenerateDocumentationFile>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<GenerateDocumentationFile>True</GenerateDocumentationFile>
+		<AssemblyName>YonatanMankovich.$(MSBuildProjectName)</AssemblyName>
+		<RootNamespace>YonatanMankovich.$(MSBuildProjectName.Replace(" ", "_"))</RootNamespace>
+		<Authors>Yonatan Mankovich</Authors>
+		<Copyright>Copyright © $(Authors) 2022</Copyright>
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="PacketDotNet" Version="1.4.0" />
-    <PackageReference Include="SharpPcap" Version="6.1.0" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="PacketDotNet" Version="1.4.0" />
+		<PackageReference Include="SharpPcap" Version="6.1.0" />
+	</ItemGroup>
 
 </Project>

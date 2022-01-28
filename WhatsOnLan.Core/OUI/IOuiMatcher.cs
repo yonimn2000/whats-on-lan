@@ -1,6 +1,6 @@
 ﻿using System.Net.NetworkInformation;
 
-namespace WhatsOnLan.Core.OUI
+namespace YonatanMankovich.WhatsOnLan.Core.OUI
 {
     /// <summary>
     /// Defines methods for matching MAC addresses to the corresponding organization name 

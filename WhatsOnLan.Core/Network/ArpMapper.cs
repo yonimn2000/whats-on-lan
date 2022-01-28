@@ -3,9 +3,9 @@ using SharpPcap;
 using SharpPcap.LibPcap;
 using System.Net;
 using System.Net.NetworkInformation;
-using WhatsOnLan.Core.Hardware;
+using YonatanMankovich.WhatsOnLan.Core.Hardware;
 
-namespace WhatsOnLan.Core.Network
+namespace YonatanMankovich.WhatsOnLan.Core.Network
 {
     /// <summary>
     /// Provides methods for mapping IP addresses to MAC addresses using ARP.

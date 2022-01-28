@@ -1,4 +1,4 @@
-﻿namespace WhatsOnLan.Core.OUI
+﻿namespace YonatanMankovich.WhatsOnLan.Core.OUI
 {
     /// <summary>
     /// Provides methods to work with the IEEE OUI CSV file.

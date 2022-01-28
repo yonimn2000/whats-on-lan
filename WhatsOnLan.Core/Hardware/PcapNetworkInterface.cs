@@ -3,7 +3,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 
-namespace WhatsOnLan.Core.Hardware
+namespace YonatanMankovich.WhatsOnLan.Core.Hardware
 {
     /// <summary>
     /// Provides a network interface with its main properties.

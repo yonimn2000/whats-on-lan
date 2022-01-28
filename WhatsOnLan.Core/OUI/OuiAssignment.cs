@@ -1,4 +1,4 @@
-﻿namespace WhatsOnLan.Core.OUI
+﻿namespace YonatanMankovich.WhatsOnLan.Core.OUI
 {
     /// <summary>
     /// Represents an IEEE OUI assignment.

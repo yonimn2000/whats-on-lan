@@ -2,7 +2,7 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace WhatsOnLan.Core.Network
+namespace YonatanMankovich.WhatsOnLan.Core.Network
 {
     /// <summary>
     /// Provides mehtods for resolving the hostnames of <see cref="IPAddress"/>es.

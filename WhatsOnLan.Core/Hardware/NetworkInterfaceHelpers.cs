@@ -1,6 +1,6 @@
 ﻿using System.Net.NetworkInformation;
 
-namespace WhatsOnLan.Core.Hardware
+namespace YonatanMankovich.WhatsOnLan.Core.Hardware
 {
     /// <summary>
     /// Provides methods for getting the network interfaces of the current machine.

@@ -1,11 +1,11 @@
 ﻿using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
-using WhatsOnLan.Core.Hardware;
-using WhatsOnLan.Core.Network;
-using WhatsOnLan.Core.OUI;
+using YonatanMankovich.WhatsOnLan.Core.Hardware;
+using YonatanMankovich.WhatsOnLan.Core.Network;
+using YonatanMankovich.WhatsOnLan.Core.OUI;
 
-namespace WhatsOnLan.Core
+namespace YonatanMankovich.WhatsOnLan.Core
 {
     /// <summary>
     /// Represents a network scanner.
