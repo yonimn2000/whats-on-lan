@@ -23,11 +23,14 @@ foreach (PcapNetworkInterface networkInterface in networkInterfaces)
 {
     NetworkScanner networkScanner = new NetworkScanner(networkInterface)
     {
-        OuiMatcher = ouiMatcher,
-        SendPings = true,
-        SendArpRequest = true,
-        ResolveHostnames = true,
-        StripDnsSuffix = true
+        Options = new NetworkScannerOptions
+        {
+            OuiMatcher = ouiMatcher,
+            SendPings = true,
+            SendArpRequest = true,
+            ResolveHostnames = true,
+            StripDnsSuffix = true
+        }
     };
 
     Console.WriteLine($"\nScanning {networkInterface.NumberOfScannableHosts} hosts on the '{networkInterface.Name}' interface...");
