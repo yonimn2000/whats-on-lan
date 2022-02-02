@@ -79,6 +79,12 @@ namespace YonatanMankovich.WhatsOnLan.Core
         }
 
         /// <summary>
+        /// Scans all the possible IP addresses on the network of the <see cref="Interface"/> asynchronously.
+        /// </summary>
+        /// <returns>The <see cref="IpScanResult"/>s of the network scan.</returns>
+        public Task<IEnumerable<IpScanResult>> ScanNetworkAsync() => Task.Run(ScanNetwork);
+
+        /// <summary>
         /// Scans all the possible IP addresses on the network of the <see cref="Interface"/>.
         /// </summary>
         /// <returns>The <see cref="IpScanResult"/>s of the network scan.</returns>

@@ -51,6 +51,8 @@ namespace YonatanMankovich.WhatsOnLan.Core
             return false;
         }
 
+        public Task<IEnumerable<IpScanResult>> ScanNetworkAsync() => Task.Run(ScanNetwork);
+
         public IEnumerable<IpScanResult> ScanNetwork() => Scanners.SelectMany(s => s.ScanNetwork());
 
         public IEnumerator<INetworkScanner> GetEnumerator() => Scanners.GetEnumerator();
