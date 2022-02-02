@@ -154,6 +154,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
 
                 yield return scanResult;
             }
+            Debug.WriteLine("Done generating scan results!");
         }
     }
 }

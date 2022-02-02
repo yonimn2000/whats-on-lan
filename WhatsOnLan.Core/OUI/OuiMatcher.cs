@@ -24,15 +24,7 @@ namespace YonatanMankovich.WhatsOnLan.Core.OUI
         /// <param name="ouiAssignments">The OUI Assignments to use when initialzing the new <see cref="OuiMatcher"/> object.</param>
         public OuiMatcher(IEnumerable<OuiAssignment> ouiAssignments)
         {
-            Dictionary<string, string> matcher = new Dictionary<string, string>();
-            foreach (OuiAssignment ouiAssignment in ouiAssignments)
-            {
-                if (matcher.ContainsKey(ouiAssignment.Assignment))
-                    matcher[ouiAssignment.Assignment] += " OR" + ouiAssignment.Organization;
-                else
-                    matcher[ouiAssignment.Assignment] = ouiAssignment.Organization;
-            }
-            Matcher = matcher;
+            Matcher = OuiCsvFileHelpers.ConvertOuiAssignmentsToDictionary(ouiAssignments);
         }
 
         public string GetOrganizationName(PhysicalAddress macAddress)

@@ -49,5 +49,23 @@
                 yield return new OuiAssignment(assignment, organization);
             }
         }
+
+        /// <summary>
+        /// Converts the given <see cref="OuiAssignment"/> objects <see cref="IEnumerable{T}"/> to a dictionary.
+        /// </summary>
+        /// <param name="ouiAssignments">The OUI assignments.</param>
+        /// <returns>The OUI assignments dictionary where the keys are the assignments and values are the organizations.</returns>
+        public static IReadOnlyDictionary<string, string> ConvertOuiAssignmentsToDictionary(IEnumerable<OuiAssignment> ouiAssignments)
+        {
+            Dictionary<string, string> matcher = new Dictionary<string, string>();
+            foreach (OuiAssignment ouiAssignment in ouiAssignments)
+            {
+                if (matcher.ContainsKey(ouiAssignment.Assignment))
+                    matcher[ouiAssignment.Assignment] += " OR" + ouiAssignment.Organization;
+                else
+                    matcher[ouiAssignment.Assignment] = ouiAssignment.Organization;
+            }
+            return matcher;
+        }
     }
 }
