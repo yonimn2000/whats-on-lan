@@ -29,7 +29,8 @@ foreach (PcapNetworkInterface networkInterface in networkInterfaces)
             SendPings = true,
             SendArpRequest = true,
             ResolveHostnames = true,
-            StripDnsSuffix = true
+            StripDnsSuffix = true,
+            Repeats = 3
         }
     };
 
@@ -37,10 +38,10 @@ foreach (PcapNetworkInterface networkInterface in networkInterfaces)
     IList<IpScanResult> results = networkScanner.ScanNetwork().Where(r => r.IsOnline).ToList();
 
     // First number is the number of the params later. Minus is left allign. Last number is the column width.
-    string format = " {0,-15}| {1,-13}| {2,-5}| {3,-20}| {4}";
+    string format = " {0,-15}| {1,-13}| {2,-5}| {3,-25}| {4}";
     Console.WriteLine($"\n{results.Count} devices found:\n");
     Console.WriteLine(string.Format(format, "IP", "MAC", "Ping", "Hostname", "Manufacturer")); // Headers
-    Console.WriteLine(new string('-', format.Length + 15 + 13 + 20)); // Draw a line --------- under the headers.
+    Console.WriteLine(new string('-', format.Length + 15 + 13 + 25)); // Draw a line --------- under the headers.
 
     foreach (IpScanResult result in results)
         Console.WriteLine(string.Format(format, result.IpAddress, result.MacAddress,

@@ -31,6 +31,11 @@ namespace YonatanMankovich.WhatsOnLan.Core
             Interface = interfaces;
         }
 
+        public bool IsIpAddressOnCurrentNetwork(IPAddress ipAddress)
+        {
+            return IpAddressHelpers.IsOnSameNetwork(ipAddress, Interface.IpAddress, Interface.SubnetMask);
+        }
+
         /// <summary>
         /// Scans a given <see cref="IPAddress"/> on the current network <see cref="Interface"/> 
         /// and returns the <see cref="IpScanResult"/>.
@@ -50,15 +55,11 @@ namespace YonatanMankovich.WhatsOnLan.Core
             scanResult.WasArpRequested = Options.SendArpRequest;
 
             if (Options.SendPings)
-                scanResult.RespondedToPing = await Pinger.PingAsync(ipAddress);
+                scanResult.RespondedToPing = await CreatePinger().PingIpAddressAsync(ipAddress);
 
             if (Options.SendArpRequest)
             {
-                ArpMapper arpMapper = new ArpMapper(Interface)
-                {
-                    Timeout = Options.ArpTimeout
-                };
-                PhysicalAddress macAddress = await Task.Run(() => arpMapper.MapIpAddressToMacAddress(ipAddress));
+                PhysicalAddress macAddress = await Task.Run(() => CreateMacAddressResolver().ResolveMacAddress(ipAddress));
                 if (!macAddress.Equals(PhysicalAddress.None))
                 {
                     scanResult.MacAddress = macAddress;
@@ -67,15 +68,9 @@ namespace YonatanMankovich.WhatsOnLan.Core
             }
 
             if (Options.ResolveHostnames && (scanResult.RespondedToPing || scanResult.RespondedToArp))
-                scanResult.Hostname =
-                    await HostnameResolver.ResolveHostnameAsync(ipAddress, Options.StripDnsSuffix ? Interface.DnsSuffix : "");
+                scanResult.Hostname = await CreateHostnameResolver().ResolveHostnameAsync(ipAddress);
 
             return scanResult;
-        }
-
-        public bool IsIpAddressOnCurrentNetwork(IPAddress ipAddress)
-        {
-            return IpAddressHelpers.IsOnSameNetwork(ipAddress, Interface.IpAddress, Interface.SubnetMask);
         }
 
         /// <summary>
@@ -90,7 +85,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <returns>The <see cref="IpScanResult"/>s of the network scan.</returns>
         public IEnumerable<IpScanResult> ScanNetwork()
         {
-            Debug.WriteLine("Getting all IP addresses...");
+            Debug.WriteLine("Getting all reachable IP addresses...");
             IEnumerable<IPAddress> ipAddresses = Interface.GetAllNetworkHostIpAddresses();
             IEnumerable<IPAddress> respondingHosts = Array.Empty<IPAddress>();
             IDictionary<IPAddress, PhysicalAddress> macs;
@@ -99,12 +94,8 @@ namespace YonatanMankovich.WhatsOnLan.Core
 
             if (Options.SendArpRequest)
             {
-                Debug.WriteLine("Getting all MAC addresses...");
-                ArpMapper arpMapper = new ArpMapper(Interface)
-                {
-                    Timeout = Options.ArpTimeout
-                };
-                macs = arpMapper.MapIpAddressesToMacAddresses(ipAddresses);
+                Debug.WriteLine("Resolving MAC addresses...");
+                macs = CreateMacAddressResolver().ResolveMacAddresses(ipAddresses);
                 respondingHosts = macs.Where(m => !m.Value.Equals(PhysicalAddress.None)).Select(m => m.Key);
             }
             else
@@ -112,8 +103,8 @@ namespace YonatanMankovich.WhatsOnLan.Core
 
             if (Options.SendPings)
             {
-                Debug.WriteLine("Sending all pings...");
-                pings = Pinger.Ping(ipAddresses);
+                Debug.WriteLine("Pinging all IP addresses...");
+                pings = CreatePinger().PingIpAddresses(ipAddresses);
                 respondingHosts = respondingHosts.Union(pings.Where(p => p.Value).Select(p => p.Key));
             }
             else
@@ -122,7 +113,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
             if (Options.ResolveHostnames)
             {
                 Debug.WriteLine("Resolving all responding hostnames...");
-                hostnames = HostnameResolver.ResolveHostnames(respondingHosts, Options.StripDnsSuffix ? Interface.DnsSuffix : "");
+                hostnames = CreateHostnameResolver().ResolveHostnames(respondingHosts);
             }
             else
                 hostnames = ipAddresses.ToDictionary(ip => ip, ip => string.Empty);
@@ -155,6 +146,36 @@ namespace YonatanMankovich.WhatsOnLan.Core
                 yield return scanResult;
             }
             Debug.WriteLine("Done generating scan results!");
+        }
+
+        private HostnameResolver CreateHostnameResolver()
+        {
+            HostnameResolver resolver = new HostnameResolver
+            {
+                Retries = Options.Repeats
+            };
+
+            if (Options.StripDnsSuffix)
+                resolver.DnsSuffixToStrip = Interface.DnsSuffix;
+
+            return resolver;
+        }
+
+        private Pinger CreatePinger()
+        {
+            return new Pinger
+            {
+                Retries = Options.Repeats
+            };
+        }
+
+        private MacAddressResolver CreateMacAddressResolver()
+        {
+            return new MacAddressResolver(Interface)
+            {
+                Timeout = Options.ArpTimeout,
+                Retries = Options.Repeats
+            };
         }
     }
 }

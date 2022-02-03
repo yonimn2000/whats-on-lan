@@ -7,6 +7,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
 {
     /// <summary>
     /// Provides methods for working with a collection of <see cref="INetworkScanner"/> objects.
+    /// This class is especially useful when working with machines that have multiple network interfaces.
     /// </summary>
     public class NetworkScanners : IEnumerable<INetworkScanner>, INetworkScanner
     {

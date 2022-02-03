@@ -22,7 +22,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <summary>
         /// The hostname of the scanned target device.
         /// </summary>
-        public string Hostname { get; internal set; } = string.Empty;
+        public string? Hostname { get; internal set; }
 
         /// <summary>
         /// Indicates whether the scanned target device was sent an ARP request.
@@ -42,7 +42,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <summary>
         /// The manufacturer of the NIC of the scanned target device as determined by IEEE OUI.
         /// </summary>
-        public string Manufacturer { get; internal set; } = string.Empty;
+        public string? Manufacturer { get; internal set; }
 
         /// <summary>
         /// Indicates whether the scanned target device responded to the ARP request if sent.

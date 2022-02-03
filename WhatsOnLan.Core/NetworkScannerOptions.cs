@@ -38,5 +38,12 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// (NIC manufacturer) using the IEEE OUI dataset.
         /// </summary>
         public IOuiMatcher? OuiMatcher { get; set; }
+
+        /// <summary>
+        /// Gets or sets the number of times the network should be scanned consecutively.
+        /// The higher the number of repeats, the more hosts can be discovered
+        /// because not all network hosts will respond to each scan.
+        /// </summary>
+        public int Repeats { get; set; } = 1;
     }
 }
