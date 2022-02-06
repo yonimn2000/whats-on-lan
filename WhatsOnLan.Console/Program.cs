@@ -6,7 +6,7 @@ string ouiCsvFilePath = "OUI.csv";
 if (!File.Exists(ouiCsvFilePath))
 {
     Console.WriteLine("Downloading OUI CSV file...");
-    await OuiCsvFileHelpers.DownloadOuiCsvFileAsync(ouiCsvFilePath);
+    await new OuiCsvDownloader().DownloadOuiCsvFileAsync(ouiCsvFilePath);
 }
 
 Console.WriteLine("Reading OUI file...");

@@ -6,23 +6,6 @@
     public static class OuiCsvFileHelpers
     {
         /// <summary>
-        /// The URL of the IEEE OUI CSV file.
-        /// </summary>
-        public const string IeeeOuiCsvFileUrl = "http://standards-oui.ieee.org/oui/oui.csv";
-
-        /// <summary>
-        /// Downloads the OUI CSV file from the specified URL to the specified location.
-        /// </summary>
-        /// <param name="path">The location to download the OUI CSV file to.</param>
-        /// <param name="ouiCsvUrl">The URL of the OUI CSV file.</param>
-        public static async Task DownloadOuiCsvFileAsync(string path, string ouiCsvUrl = IeeeOuiCsvFileUrl)
-        {
-            HttpResponseMessage response = await new HttpClient().GetAsync(new Uri(ouiCsvUrl));
-            using FileStream fileStream = new FileStream(path, FileMode.Create);
-            await response.Content.CopyToAsync(fileStream);
-        }
-
-        /// <summary>
         /// Reads the lines of the OUI CSV file that contains 'Assignment' and 'Organization Name' columns.
         /// The CSV file must have a header row.
         /// </summary>
