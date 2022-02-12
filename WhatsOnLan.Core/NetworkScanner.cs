@@ -92,6 +92,9 @@ namespace YonatanMankovich.WhatsOnLan.Core
             IDictionary<IPAddress, bool> pings;
             IDictionary<IPAddress, string> hostnames;
 
+            if (Options.ShuffleIpAddresses)
+                ipAddresses = ipAddresses.OrderBy(ip => Guid.NewGuid());
+
             if (Options.SendArpRequest)
             {
                 Debug.WriteLine("Resolving MAC addresses...");

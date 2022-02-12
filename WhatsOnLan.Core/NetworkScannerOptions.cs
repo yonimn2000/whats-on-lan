@@ -29,6 +29,11 @@ namespace YonatanMankovich.WhatsOnLan.Core
         public bool StripDnsSuffix { get; set; } = true;
 
         /// <summary>
+        /// Indicates whether to shuffle IP addresses during the scan.
+        /// </summary>
+        public bool ShuffleIpAddresses { get; set; } = true;
+
+        /// <summary>
         /// Gets or sets the timeout of waiting for ARP responses from network hosts.
         /// </summary>
         public TimeSpan ArpTimeout { get; set; } = TimeSpan.FromSeconds(1);

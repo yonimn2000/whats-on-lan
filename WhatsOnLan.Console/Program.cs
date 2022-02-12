@@ -30,6 +30,7 @@ foreach (PcapNetworkInterface networkInterface in networkInterfaces)
             SendArpRequest = true,
             ResolveHostnames = true,
             StripDnsSuffix = true,
+            ShuffleIpAddresses = true,
             Repeats = 3
         }
     };
