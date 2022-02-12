@@ -1,6 +1,7 @@
 ﻿using YonatanMankovich.WhatsOnLan.Core;
 using YonatanMankovich.WhatsOnLan.Core.Hardware;
 using YonatanMankovich.WhatsOnLan.Core.OUI;
+using YonatanMankovich.WhatsOnLan.Core.Helpers;
 
 string ouiCsvFilePath = "OUI.csv";
 if (!File.Exists(ouiCsvFilePath))
@@ -45,6 +46,6 @@ foreach (PcapNetworkInterface networkInterface in networkInterfaces)
     Console.WriteLine(new string('-', format.Length + 15 + 13 + 25)); // Draw a line --------- under the headers.
 
     foreach (IpScanResult result in results)
-        Console.WriteLine(string.Format(format, result.IpAddress, result.MacAddress,
+        Console.WriteLine(string.Format(format, result.IpAddress.ToSortableString(), result.MacAddress,
             result.RespondedToPing ? "Yes" : "No", result.Hostname, result.Manufacturer));
 }
