@@ -12,6 +12,8 @@ namespace YonatanMankovich.WhatsOnLan.Core
     /// </summary>
     public class NetworkScanner : INetworkScanner
     {
+        private bool isRunning;
+
         /// <summary>
         /// The network scanner options.
         /// </summary>
@@ -22,6 +24,16 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// </summary>
         public PcapNetworkInterface Interface { get; set; }
 
+        public bool IsRunning
+        {
+            get => isRunning;
+            private set
+            {
+                isRunning = value;
+                StateHasChanged?.Invoke(this, System.EventArgs.Empty);
+            }
+        }
+
         /// <summary>
         /// Initializes an instance of the <see cref="NetworkScanner"/> objects with a <see cref="PcapNetworkInterface"/>.
         /// </summary>
@@ -30,6 +42,8 @@ namespace YonatanMankovich.WhatsOnLan.Core
         {
             Interface = interfaces;
         }
+
+        public event EventHandler? StateHasChanged;
 
         public bool IsIpAddressOnCurrentNetwork(IPAddress ipAddress)
         {
@@ -45,6 +59,9 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <exception cref="ArgumentException"></exception>
         public async Task<IpScanResult> ScanIpAddressAsync(IPAddress ipAddress)
         {
+            if (IsRunning) throw new NetworkScannerRunningException();
+            IsRunning = true;
+
             if (!IsIpAddressOnCurrentNetwork(ipAddress))
                 throw new IpAddressNotOnNetworkException(ipAddress, Interface.Network, Interface.SubnetMask);
 
@@ -70,6 +87,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
             if (Options.ResolveHostnames && (scanResult.RespondedToPing || scanResult.RespondedToArp))
                 scanResult.Hostname = await CreateHostnameResolver().ResolveHostnameAsync(ipAddress);
 
+            IsRunning = false;
             return scanResult;
         }
 
@@ -77,14 +95,17 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// Scans all the possible IP addresses on the network of the <see cref="Interface"/> asynchronously.
         /// </summary>
         /// <returns>The <see cref="IpScanResult"/>s of the network scan.</returns>
-        public Task<IEnumerable<IpScanResult>> ScanNetworkAsync() => Task.Run(ScanNetwork);
+        public Task<IList<IpScanResult>> ScanNetworkAsync() => Task.Run(ScanNetwork);
 
         /// <summary>
         /// Scans all the possible IP addresses on the network of the <see cref="Interface"/>.
         /// </summary>
         /// <returns>The <see cref="IpScanResult"/>s of the network scan.</returns>
-        public IEnumerable<IpScanResult> ScanNetwork()
+        public IList<IpScanResult> ScanNetwork()
         {
+            if (IsRunning) throw new NetworkScannerRunningException();
+            IsRunning = true;
+
             Debug.WriteLine("Getting all reachable IP addresses...");
             IEnumerable<IPAddress> ipAddresses = Interface.GetAllNetworkHostIpAddresses();
             IEnumerable<IPAddress> respondingHosts = Array.Empty<IPAddress>();
@@ -122,6 +143,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
                 hostnames = ipAddresses.ToDictionary(ip => ip, ip => string.Empty);
 
             Debug.WriteLine("Generating scan results...");
+            IList<IpScanResult> scanResults = new List<IpScanResult>();
             foreach (IPAddress ip in ipAddresses)
             {
                 IpScanResult scanResult = new IpScanResult();
@@ -146,9 +168,11 @@ namespace YonatanMankovich.WhatsOnLan.Core
                     }
                 }
 
-                yield return scanResult;
+                scanResults.Add(scanResult);
             }
             Debug.WriteLine("Done generating scan results!");
+            IsRunning = false;
+            return scanResults;
         }
 
         private HostnameResolver CreateHostnameResolver()

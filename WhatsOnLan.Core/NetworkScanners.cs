@@ -11,6 +11,8 @@ namespace YonatanMankovich.WhatsOnLan.Core
     /// </summary>
     public class NetworkScanners : IEnumerable<INetworkScanner>, INetworkScanner
     {
+        private bool isRunning;
+
         /// <summary>
         /// A set of <see cref="INetworkScanner"/> objects.
         /// </summary>
@@ -20,6 +22,18 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// The network scanners options.
         /// </summary>
         public NetworkScannerOptions Options { get; set; } = new NetworkScannerOptions();
+
+        public bool IsRunning
+        {
+            get => isRunning;
+            private set
+            {
+                isRunning = value;
+                StateHasChanged?.Invoke(this, System.EventArgs.Empty);
+            }
+        }
+
+        public event EventHandler? StateHasChanged;
 
         /// <summary>
         /// Initilizes <see cref="NetworkScanners"/> with all network interfaces available on the current machine.
@@ -33,14 +47,18 @@ namespace YonatanMankovich.WhatsOnLan.Core
                 });
         }
 
-        public Task<IpScanResult> ScanIpAddressAsync(IPAddress ipAddress)
+        public async Task<IpScanResult> ScanIpAddressAsync(IPAddress ipAddress)
         {
+            if (IsRunning) throw new NetworkScannerRunningException();
             INetworkScanner? scanner = Scanners.FirstOrDefault(s => s.IsIpAddressOnCurrentNetwork(ipAddress));
-            
+
             if (scanner == null)
                 throw new IpAddressNotOnNetworkException(ipAddress);
 
-            return scanner.ScanIpAddressAsync(ipAddress);
+            IsRunning = true;
+            IpScanResult result = await scanner.ScanIpAddressAsync(ipAddress);
+            IsRunning = false;
+            return result;
         }
 
         public bool IsIpAddressOnCurrentNetwork(IPAddress ipAddress)
@@ -52,9 +70,16 @@ namespace YonatanMankovich.WhatsOnLan.Core
             return false;
         }
 
-        public Task<IEnumerable<IpScanResult>> ScanNetworkAsync() => Task.Run(ScanNetwork);
+        public Task<IList<IpScanResult>> ScanNetworkAsync() => Task.Run(ScanNetwork);
 
-        public IEnumerable<IpScanResult> ScanNetwork() => Scanners.SelectMany(s => s.ScanNetwork());
+        public IList<IpScanResult> ScanNetwork()
+        {
+            if (IsRunning) throw new NetworkScannerRunningException();
+            IsRunning = true;
+            IList<IpScanResult> results = Scanners.SelectMany(s => s.ScanNetwork()).ToList();
+            IsRunning = false;
+            return results;
+        }
 
         public IEnumerator<INetworkScanner> GetEnumerator() => Scanners.GetEnumerator();
 

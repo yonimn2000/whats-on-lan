@@ -8,6 +8,16 @@ namespace YonatanMankovich.WhatsOnLan.Core
     public interface INetworkScanner
     {
         /// <summary>
+        /// The event that occurs when the running state of the scanner changes.
+        /// </summary>
+        event EventHandler? StateHasChanged;
+
+        /// <summary>
+        /// Gets the network scannings status. <see langword="true"/> if the scanner is running; <see langword="false"/> otherwise.
+        /// </summary>
+        bool IsRunning { get; }
+
+        /// <summary>
         /// Scans a given <see cref="IPAddress"/> and returns the <see cref="IpScanResult"/>.
         /// </summary>
         /// <param name="ipAddress">The IP address to scan.</param>
@@ -18,13 +28,13 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// Scans all the possible IP addresses on the network.
         /// </summary>
         /// <returns>The <see cref="IpScanResult"/>s of the network scan.</returns>
-        IEnumerable<IpScanResult> ScanNetwork();
+        IList<IpScanResult> ScanNetwork();
 
         /// <summary>
         /// Scans all the possible IP addresses on the network asynchronously.
         /// </summary>
         /// <returns>The <see cref="IpScanResult"/>s of the network scan.</returns>
-        Task<IEnumerable<IpScanResult>> ScanNetworkAsync();
+        Task<IList<IpScanResult>> ScanNetworkAsync();
 
         /// <summary>
         /// Checks if the provided <see cref="IPAddress"/> is on the current network.
