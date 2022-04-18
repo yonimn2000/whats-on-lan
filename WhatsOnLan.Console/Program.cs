@@ -20,32 +20,40 @@ Console.WriteLine("\nActive network interfaces:");
 foreach (PcapNetworkInterface networkInterface in networkInterfaces)
     Console.WriteLine("  - " + networkInterface);
 
-foreach (PcapNetworkInterface networkInterface in networkInterfaces)
+do
 {
-    NetworkScanner networkScanner = new NetworkScanner(networkInterface)
+    foreach (PcapNetworkInterface networkInterface in networkInterfaces)
     {
-        Options = new NetworkScannerOptions
+        NetworkScanner networkScanner = new NetworkScanner(networkInterface)
         {
-            OuiMatcher = ouiMatcher,
-            SendPings = true,
-            SendArpRequest = true,
-            ResolveHostnames = true,
-            StripDnsSuffix = true,
-            ShuffleIpAddresses = true,
-            Repeats = 3
-        }
-    };
+            Options = new NetworkScannerOptions
+            {
+                OuiMatcher = ouiMatcher,
+                SendPings = true,
+                SendArpRequest = true,
+                ResolveHostnames = true,
+                StripDnsSuffix = true,
+                ShuffleIpAddresses = true,
+                Repeats = 3
+            }
+        };
 
-    Console.WriteLine($"\nScanning {networkInterface.NumberOfScannableHosts} hosts on the '{networkInterface.Name}' interface...");
-    IList<IpScanResult> results = networkScanner.ScanNetwork().Where(r => r.IsOnline).ToList();
+        Console.WriteLine($"\nScanning {networkInterface.NumberOfScannableHosts} hosts on the '{networkInterface.Name}' interface...");
+        IList<IpScanResult> results = networkScanner.ScanNetwork().Where(r => r.IsOnline).ToList();
 
-    // First number is the number of the params later. Minus is left allign. Last number is the column width.
-    string format = " {0,-16}| {1,-13}| {2,-5}| {3,-25}| {4}";
-    Console.WriteLine($"\n{results.Count} devices found:\n");
-    Console.WriteLine(string.Format(format, "IP", "MAC", "Ping", "Hostname", "Manufacturer")); // Headers
-    Console.WriteLine(new string('-', format.Length + 16 + 13 + 25)); // Draw a line --------- under the headers.
+        // First number is the number of the params later. Minus is left align. Last number is the column width.
+        string format = " {0,-16}| {1,-13}| {2,-5}| {3,-25}| {4}";
+        Console.WriteLine($"\n{results.Count} devices found:\n");
+        Console.WriteLine(string.Format(format, "IP", "MAC", "Ping", "Hostname", "Manufacturer")); // Headers
+        Console.WriteLine(new string('-', format.Length + 16 + 13 + 25)); // Draw a line --------- under the headers.
 
-    foreach (IpScanResult result in results)
-        Console.WriteLine(string.Format(format, result.IpAddress.ToSortableString(), result.MacAddress,
-            result.RespondedToPing ? "Yes" : "No", result.Hostname, result.Manufacturer));
-}
+        foreach (IpScanResult result in results)
+            Console.WriteLine(string.Format(format, result.IpAddress.ToSortableString(), result.MacAddress,
+                result.RespondedToPing ? "Yes" : "No", result.Hostname, result.Manufacturer));
+    }
+
+    Console.WriteLine(Environment.NewLine + "Press ENTER to scan again. Press Q and ENTER to exit.");
+    string? read = Console.ReadLine();
+    if (!string.IsNullOrWhiteSpace(read) && read.ToUpper().Contains('Q'))
+        break;
+} while (true);
