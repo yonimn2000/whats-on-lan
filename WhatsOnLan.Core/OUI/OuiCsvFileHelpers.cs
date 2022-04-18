@@ -27,6 +27,11 @@
             {
                 // Headers: Registry,Assignment,Organization Name,Organization Address
                 string[] rowTokens = line.Split(',');
+
+                // Skip invalid records.
+                if (rowTokens.Length <= Math.Max(indexOfAssignmentColumn, indexOfOrganizationNameColumn))
+                    continue;
+
                 string assignment = rowTokens[indexOfAssignmentColumn];
                 string organization = rowTokens[indexOfOrganizationNameColumn].Trim('"');
                 yield return new OuiAssignment(assignment, organization);
