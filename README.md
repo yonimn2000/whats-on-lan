@@ -1,4 +1,4 @@
-# What's On LAN
+# What's on LAN
 
 A scanner library to find basic networking info about devices in the local area network.
 
