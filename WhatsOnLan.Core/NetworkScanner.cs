@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using YonatanMankovich.WhatsOnLan.Core.Exceptions;
 using YonatanMankovich.WhatsOnLan.Core.Hardware;
+using YonatanMankovich.WhatsOnLan.Core.Helpers;
 using YonatanMankovich.WhatsOnLan.Core.Network;
 
 namespace YonatanMankovich.WhatsOnLan.Core
@@ -24,6 +25,9 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// </summary>
         public PcapNetworkInterface Interface { get; set; }
 
+        /// <summary>
+        /// Gets the running status of the <see cref="NetworkScanner"/>.
+        /// </summary>
         public bool IsRunning
         {
             get => isRunning;
@@ -43,8 +47,19 @@ namespace YonatanMankovich.WhatsOnLan.Core
             Interface = interfaces;
         }
 
+        /// <summary>
+        /// The event handler for when the state of the <see cref="NetworkScanner"/> changes.
+        /// </summary>
         public event EventHandler? StateHasChanged;
 
+        /// <summary>
+        /// Gets a value indicating whether an <see cref="IPAddress"/> is on the same network as the <see cref="NetworkScanner"/>.
+        /// </summary>
+        /// <param name="ipAddress">The <see cref="IPAddress"/> to check.</param>
+        /// <returns>
+        /// Returns <see langword="true"/> if the given <paramref name="ipAddress"/> 
+        /// is on the same network as the <see cref="NetworkScanner"/>; <see langword="false"/> otherwise.
+        /// </returns>
         public bool IsIpAddressOnCurrentNetwork(IPAddress ipAddress)
         {
             return IpAddressHelpers.IsOnSameNetwork(ipAddress, Interface.IpAddress, Interface.SubnetMask);

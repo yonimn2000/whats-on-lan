@@ -2,6 +2,7 @@
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using YonatanMankovich.WhatsOnLan.Core.Helpers;
 
 namespace YonatanMankovich.WhatsOnLan.Core.Hardware
 {
@@ -41,7 +42,7 @@ namespace YonatanMankovich.WhatsOnLan.Core.Hardware
         public IPAddress Network { get; }
 
         /// <summary>
-        /// Gets the boradcast address of the interface.
+        /// Gets the broadcast address of the interface.
         /// </summary>
         public IPAddress Broadcast { get; }
 
