@@ -1,4 +1,6 @@
-﻿namespace YonatanMankovich.WhatsOnLan.Core.OUI
+﻿using System.Diagnostics;
+
+namespace YonatanMankovich.WhatsOnLan.Core.OUI
 {
     /// <summary>
     /// Provides methods to work with the IEEE OUI CSV file.
@@ -28,12 +30,31 @@
                 // Headers: Registry,Assignment,Organization Name,Organization Address
                 string[] rowTokens = line.Split(',');
 
-                // Skip invalid records.
+                // Skip invalid records that have less than the required number of tokens.
                 if (rowTokens.Length <= Math.Max(indexOfAssignmentColumn, indexOfOrganizationNameColumn))
+                {
+                    Debug.WriteLine($"Skipped invalid OUI CSV line due to missing data: '{line}'.");
                     continue;
+                }
 
-                string assignment = rowTokens[indexOfAssignmentColumn];
+                // Remove quote marks around the strings.
+                string assignment = rowTokens[indexOfAssignmentColumn].Trim('"');
                 string organization = rowTokens[indexOfOrganizationNameColumn].Trim('"');
+
+                // Skip invalid records that do not have a valid assignment.
+                if (!OuiAssignment.IsAssignmentValid(assignment))
+                {
+                    Debug.WriteLine($"Skipped invalid OUI CSV line due to an invalid assignment: '{line}'.");
+                    continue;
+                }
+
+                // Skip invalid records that do not have a valid organization.
+                if (!OuiAssignment.IsOrganizationValid(organization))
+                {
+                    Debug.WriteLine($"Skipped invalid OUI CSV line due to an invalid organization: '{line}'.");
+                    continue;
+                }
+
                 yield return new OuiAssignment(assignment, organization);
             }
         }
