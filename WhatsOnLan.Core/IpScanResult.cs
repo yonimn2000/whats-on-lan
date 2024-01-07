@@ -47,7 +47,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <summary>
         /// Indicates whether the scanned target device responded to the ARP request if sent.
         /// </summary>
-        public bool RespondedToArp => !MacAddress.Equals(PhysicalAddress.None);
+        public bool RespondedToArp => WasArpRequested && !MacAddress.Equals(PhysicalAddress.None);
 
         /// <summary>
         /// Indicates whether the scanned target device was online during the scan as determined by the ping or ARP responses.

@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Net.NetworkInformation;
 
 namespace YonatanMankovich.WhatsOnLan.Core
 {
@@ -23,6 +24,13 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <param name="ipAddress">The IP address to scan.</param>
         /// <returns>The <see cref="IpScanResult"/>.</returns>
         Task<IpScanResult> ScanIpAddressAsync(IPAddress ipAddress);
+
+        /// <summary>
+        /// Scans a given <see cref="PhysicalAddress"/> and returns the <see cref="IpScanResult"/>.
+        /// </summary>
+        /// <param name="macAddress">The MAC address to scan.</param>
+        /// <returns>The <see cref="IpScanResult"/>.</returns>
+        Task<IpScanResult> ScanMacAddressAsync(PhysicalAddress macAddress);
 
         /// <summary>
         /// Scans all the possible IP addresses on the network.

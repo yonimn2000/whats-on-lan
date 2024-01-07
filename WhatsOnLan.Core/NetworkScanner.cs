@@ -23,7 +23,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <summary>
         /// Gets or sets the network interface of the scanner.
         /// </summary>
-        public PcapNetworkInterface Interface { get; set; }
+        public PcapNetworkInterface Interface { get; }
 
         /// <summary>
         /// Gets the running status of the <see cref="NetworkScanner"/>.
@@ -41,10 +41,10 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <summary>
         /// Initializes an instance of the <see cref="NetworkScanner"/> objects with a <see cref="PcapNetworkInterface"/>.
         /// </summary>
-        /// <param name="interfaces">The network interface to initialize the scanner with.</param>
-        public NetworkScanner(PcapNetworkInterface interfaces)
+        /// <param name="iface">The network interface to initialize the scanner with.</param>
+        public NetworkScanner(PcapNetworkInterface iface)
         {
-            Interface = interfaces;
+            Interface = iface;
         }
 
         /// <summary>
@@ -80,11 +80,12 @@ namespace YonatanMankovich.WhatsOnLan.Core
             if (!IsIpAddressOnCurrentNetwork(ipAddress))
                 throw new IpAddressNotOnNetworkException(ipAddress, Interface.Network, Interface.SubnetMask);
 
-            IpScanResult scanResult = new IpScanResult();
-
-            scanResult.IpAddress = ipAddress;
-            scanResult.WasPinged = Options.SendPings;
-            scanResult.WasArpRequested = Options.SendArpRequest;
+            IpScanResult scanResult = new IpScanResult
+            {
+                IpAddress = ipAddress,
+                WasPinged = Options.SendPings,
+                WasArpRequested = Options.SendArpRequest
+            };
 
             if (Options.SendPings)
                 scanResult.RespondedToPing = await CreatePinger().PingIpAddressAsync(ipAddress);
@@ -103,6 +104,72 @@ namespace YonatanMankovich.WhatsOnLan.Core
                 scanResult.Hostname = await CreateHostnameResolver().ResolveHostnameAsync(ipAddress);
 
             IsRunning = false;
+            return scanResult;
+        }
+
+        /// <summary>
+        /// Scans a given <see cref="PhysicalAddress"/> on the current network <see cref="Interface"/> 
+        /// and returns the <see cref="IpScanResult"/>.
+        /// </summary>
+        /// <param name="macAddress">The MAC address to scan.</param>
+        /// <returns>The <see cref="IpScanResult"/>.</returns>
+        public async Task<IpScanResult> ScanMacAddressAsync(PhysicalAddress macAddress)
+        {
+            IpScanResult scanResult = new IpScanResult
+            {
+                MacAddress = macAddress,
+                Manufacturer = Options.OuiMatcher?.GetOrganizationName(macAddress),
+                WasPinged = Options.SendPings,
+                WasArpRequested = Options.SendArpRequest
+            };
+
+            IPAddress ipAddress = await Task.Run(() => CreateIpAddressResolver().ResolveIpAddress(macAddress));
+            bool sentArp = false;
+
+            // If not found IP, try scanning the whole network.
+            if (ipAddress == IPAddress.None && Options.SendArpRequest)
+            {
+                NetworkScanner networkScanner = new NetworkScanner(Interface)
+                {
+                    Options = new NetworkScannerOptions
+                    {
+                        ArpTimeout = Options.ArpTimeout,
+                        SendArpRequest = true,
+                        Repeats = Options.Repeats,
+                        ShuffleIpAddresses = Options.ShuffleIpAddresses,
+                        ResolveHostnames = false,
+                        SendPings = false,
+                    }
+                };
+
+                ipAddress = (await networkScanner.ScanNetworkAsync())
+                    .Where(r => r.MacAddress.Equals(macAddress))
+                    .Select(r => r.IpAddress)
+                    .FirstOrDefault() ?? IPAddress.None;
+
+                sentArp = true;
+            }
+
+            if (ipAddress != IPAddress.None)
+            {
+                scanResult.IpAddress = ipAddress;
+
+                // If ARP is requested, reverse scan the IP address.
+                if (Options.SendArpRequest && !sentArp)
+                {
+                    IpScanResult ipScanResult = await ScanIpAddressAsync(ipAddress);
+
+                    if (ipScanResult.MacAddress.Equals(macAddress))
+                        return ipScanResult;
+                }
+
+                if (Options.SendPings)
+                    scanResult.RespondedToPing = await CreatePinger().PingIpAddressAsync(scanResult.IpAddress);
+
+                if (Options.ResolveHostnames && (scanResult.RespondedToPing || scanResult.RespondedToArp))
+                    scanResult.Hostname = await CreateHostnameResolver().ResolveHostnameAsync(scanResult.IpAddress);
+            }
+
             return scanResult;
         }
 
@@ -214,6 +281,15 @@ namespace YonatanMankovich.WhatsOnLan.Core
         private MacAddressResolver CreateMacAddressResolver()
         {
             return new MacAddressResolver(Interface)
+            {
+                Timeout = Options.ArpTimeout,
+                Retries = Options.Repeats
+            };
+        }
+
+        private IpAddressResolver CreateIpAddressResolver()
+        {
+            return new IpAddressResolver(Interface)
             {
                 Timeout = Options.ArpTimeout,
                 Retries = Options.Repeats

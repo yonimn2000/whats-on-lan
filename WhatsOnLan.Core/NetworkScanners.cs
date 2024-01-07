@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Net;
+using System.Net.NetworkInformation;
 using YonatanMankovich.WhatsOnLan.Core.Exceptions;
 using YonatanMankovich.WhatsOnLan.Core.Hardware;
 
@@ -23,6 +24,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// </summary>
         public NetworkScannerOptions Options { get; set; } = new NetworkScannerOptions();
 
+        /// <inheritdoc/>
         public bool IsRunning
         {
             get => isRunning;
@@ -33,6 +35,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
             }
         }
 
+        /// <inheritdoc/>
         public event EventHandler? StateHasChanged;
 
         /// <summary>
@@ -47,6 +50,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
                 });
         }
 
+        /// <inheritdoc/>
         public async Task<IpScanResult> ScanIpAddressAsync(IPAddress ipAddress)
         {
             if (IsRunning) throw new NetworkScannerRunningException();
@@ -61,6 +65,23 @@ namespace YonatanMankovich.WhatsOnLan.Core
             return result;
         }
 
+        /// <inheritdoc/>
+        public async Task<IpScanResult> ScanMacAddressAsync(PhysicalAddress macAddress)
+        {
+            IpScanResult result = new IpScanResult();
+
+            await Parallel.ForEachAsync(Scanners, async (scanner, cancelToken) =>
+            {
+                IpScanResult currentResult = await scanner.ScanMacAddressAsync(macAddress);
+
+                if (currentResult.IsOnline)
+                    result = currentResult;
+            });
+
+            return result;
+        }
+
+        /// <inheritdoc/>
         public bool IsIpAddressOnCurrentNetwork(IPAddress ipAddress)
         {
             foreach (INetworkScanner scanner in Scanners)
@@ -70,8 +91,10 @@ namespace YonatanMankovich.WhatsOnLan.Core
             return false;
         }
 
+        /// <inheritdoc/>
         public Task<IList<IpScanResult>> ScanNetworkAsync() => Task.Run(ScanNetwork);
 
+        /// <inheritdoc/>
         public IList<IpScanResult> ScanNetwork()
         {
             if (IsRunning) throw new NetworkScannerRunningException();
@@ -81,6 +104,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
             return results;
         }
 
+        /// <inheritdoc/>
         public IEnumerator<INetworkScanner> GetEnumerator() => Scanners.GetEnumerator();
 
         IEnumerator IEnumerable.GetEnumerator()
