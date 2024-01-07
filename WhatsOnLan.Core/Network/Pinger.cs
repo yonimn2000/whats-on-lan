@@ -15,6 +15,11 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
         public int Retries { get; set; } = 1;
 
         /// <summary>
+        /// Gets or sets the timeout of waiting for ping responses.
+        /// </summary>
+        public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(1);
+
+        /// <summary>
         /// Pings the provided <see cref="IPAddress"/>es.
         /// </summary>
         /// <param name="ipAddresses">The <see cref="IPAddress"/>es to ping.</param>
@@ -41,11 +46,14 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
             try
             {
                 int tries = 0;
+
                 do
                 {
-                    PingReply reply = await new Ping().SendPingAsync(ip);
+                    PingReply reply = await new Ping().SendPingAsync(ip, Timeout.Milliseconds);
+
                     if (reply.Status == IPStatus.Success)
                         return true;
+
                     tries++;
                 } while (tries < Retries);
             }

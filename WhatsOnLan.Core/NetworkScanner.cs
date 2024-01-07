@@ -261,7 +261,8 @@ namespace YonatanMankovich.WhatsOnLan.Core
         {
             HostnameResolver resolver = new HostnameResolver
             {
-                Retries = Options.Repeats
+                Retries = Options.Repeats,
+                Timeout = Options.HostnameResolverTimeout,
             };
 
             if (Options.StripDnsSuffix)
@@ -274,7 +275,8 @@ namespace YonatanMankovich.WhatsOnLan.Core
         {
             return new Pinger
             {
-                Retries = Options.Repeats
+                Retries = Options.Repeats,
+                Timeout = Options.PingerTimeout,
             };
         }
 
@@ -289,11 +291,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
 
         private IpAddressResolver CreateIpAddressResolver()
         {
-            return new IpAddressResolver(Interface)
-            {
-                Timeout = Options.ArpTimeout,
-                Retries = Options.Repeats
-            };
+            return new IpAddressResolver(Interface);
         }
     }
 }

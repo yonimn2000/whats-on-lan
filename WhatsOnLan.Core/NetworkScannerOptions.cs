@@ -39,6 +39,16 @@ namespace YonatanMankovich.WhatsOnLan.Core
         public TimeSpan ArpTimeout { get; set; } = TimeSpan.FromSeconds(1);
 
         /// <summary>
+        /// Gets or sets the timeout of waiting for hostname resolution responses.
+        /// </summary>
+        public TimeSpan HostnameResolverTimeout { get; set; } = TimeSpan.FromSeconds(1);
+
+        /// <summary>
+        /// Gets or sets the timeout of waiting for ping responses.
+        /// </summary>
+        public TimeSpan PingerTimeout { get; set; } = TimeSpan.FromSeconds(1);
+
+        /// <summary>
         /// Gets or sets an OUI matcher for matching MAC addresses to the corresponding organization name 
         /// (NIC manufacturer) using the IEEE OUI dataset.
         /// </summary>

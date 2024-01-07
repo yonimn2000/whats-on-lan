@@ -5,7 +5,7 @@ using System.Net.Sockets;
 namespace YonatanMankovich.WhatsOnLan.Core.Network
 {
     /// <summary>
-    /// Provides mehtods for resolving the hostnames of <see cref="IPAddress"/>es.
+    /// Provides methods for resolving the hostnames of <see cref="IPAddress"/>es.
     /// </summary>
     public class HostnameResolver
     {
@@ -19,6 +19,11 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
         /// Gets or sets the number of times to try resolving hostnames consecutively.
         /// </summary>
         public int Retries { get; set; } = 1;
+
+        /// <summary>
+        /// Gets or sets the timeout of waiting for hostname resolution responses.
+        /// </summary>
+        public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(1);
 
         /// <summary>
         /// Resolves the hostnames of the provided <see cref="IPAddress"/>es.
@@ -55,10 +60,19 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
             {
                 try
                 {
-                    IPHostEntry host = await Dns.GetHostEntryAsync(ipAddress);
-                    string hostname = host.HostName;
+                    Task<IPHostEntry> task = Dns.GetHostEntryAsync(ipAddress);
+
+                    if (!task.Wait(Timeout))
+                        throw new TimeoutException();
+
+                    string hostname = task.Result.HostName;
+
                     return string.IsNullOrWhiteSpace(DnsSuffixToStrip) ? hostname
                         : hostname.Replace('.' + DnsSuffixToStrip, "", StringComparison.InvariantCultureIgnoreCase);
+                }
+                catch (TimeoutException)
+                {
+                    Debug.WriteLine($"Hostname resolution of the IP address of {ipAddress} has timed out.");
                 }
                 catch (SocketException)
                 {
