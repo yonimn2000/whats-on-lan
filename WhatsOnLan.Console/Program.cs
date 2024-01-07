@@ -42,7 +42,10 @@ do
                 ResolveHostnames = true,
                 StripDnsSuffix = true,
                 ShuffleIpAddresses = true,
-                Repeats = 3
+                Repeats = 5,
+                ArpTimeout = TimeSpan.FromSeconds(1),
+                HostnameResolverTimeout = TimeSpan.FromSeconds(3),
+                PingerTimeout = TimeSpan.FromMilliseconds(250),
             }
         };
 
