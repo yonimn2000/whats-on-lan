@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
 using YonatanMankovich.WhatsOnLan.Core.Exceptions;
@@ -33,6 +34,9 @@ namespace YonatanMankovich.WhatsOnLan.Core
             get => isRunning;
             private set
             {
+                if (value && isRunning)
+                    throw new NetworkScannerRunningException();
+
                 isRunning = value;
                 StateHasChanged?.Invoke(this, System.EventArgs.Empty);
             }
@@ -60,143 +64,52 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// Returns <see langword="true"/> if the given <paramref name="ipAddress"/> 
         /// is on the same network as the <see cref="NetworkScanner"/>; <see langword="false"/> otherwise.
         /// </returns>
-        public bool IsIpAddressOnCurrentNetwork(IPAddress ipAddress)
+        public bool IsIpAddressOnScannerNetwork(IPAddress ipAddress)
         {
             return IpAddressHelpers.IsOnSameNetwork(ipAddress, Interface.IpAddress, Interface.SubnetMask);
         }
 
         /// <summary>
-        /// Scans a given <see cref="IPAddress"/> on the current network <see cref="Interface"/> 
+        /// Scans all the possible IP addresses on the network of the <see cref="Interface"/>.
+        /// </summary>
+        /// <returns>The <see cref="IpScanResult"/>s of the network scan.</returns>
+        public ICollection<IpScanResult> ScanNetwork()
+        {
+            Debug.WriteLine("Getting all reachable IP addresses...");
+            IPAddress[] ipAddresses = Interface.GetAllNetworkHostIpAddresses().ToArray();
+            Debug.WriteLine($"{ipAddresses.Length:N0} possible hosts on the {Interface.Network} network.");
+
+            return ScanIpAddresses(ipAddresses).Values;
+        }
+
+        /// <summary>
+        /// Scans the given <see cref="IPAddress"/> on the current network <see cref="Interface"/> 
         /// and returns the <see cref="IpScanResult"/>.
         /// </summary>
         /// <param name="ipAddress">The IP address to scan (must be on the same network as the <see cref="Interface"/>).</param>
         /// <returns>The <see cref="IpScanResult"/>.</returns>
         /// <exception cref="ArgumentException"></exception>
-        public async Task<IpScanResult> ScanIpAddressAsync(IPAddress ipAddress)
+        public IpScanResult ScanIpAddress(IPAddress ipAddress)
+            => ScanIpAddresses(new HashSet<IPAddress>(1) { ipAddress })[ipAddress];
+
+        /// <summary>
+        /// Scans the given <see cref="IPAddress"/>es on the current network <see cref="Interface"/> 
+        /// and returns the <see cref="IpScanResult"/>s.
+        /// </summary>
+        /// <param name="ipAddresses">The IP addresses to scan (must be on the same network as the <see cref="Interface"/>).</param>
+        /// <returns>The <see cref="IpScanResult"/>s.</returns>
+        /// <exception cref="ArgumentException"></exception>
+        public IDictionary<IPAddress, IpScanResult> ScanIpAddresses(IEnumerable<IPAddress> ipAddresses)
         {
-            if (IsRunning) throw new NetworkScannerRunningException();
             IsRunning = true;
 
-            if (!IsIpAddressOnCurrentNetwork(ipAddress))
-                throw new IpAddressNotOnNetworkException(ipAddress, Interface.Network, Interface.SubnetMask);
-
-            IpScanResult scanResult = new IpScanResult
-            {
-                IpAddress = ipAddress,
-                WasPinged = Options.SendPings,
-                WasArpRequested = Options.SendArpRequest
-            };
-
-            if (Options.SendPings)
-                scanResult.RespondedToPing = await CreatePinger().PingIpAddressAsync(ipAddress);
-
-            if (Options.SendArpRequest)
-            {
-                PhysicalAddress macAddress = await Task.Run(() => CreateMacAddressResolver().ResolveMacAddress(ipAddress));
-                if (!macAddress.Equals(PhysicalAddress.None))
-                {
-                    scanResult.MacAddress = macAddress;
-                    scanResult.Manufacturer = Options.OuiMatcher?.GetOrganizationName(macAddress);
-                }
-            }
-
-            if (Options.ResolveHostnames && (scanResult.RespondedToPing || scanResult.RespondedToArp))
-                scanResult.Hostname = await CreateHostnameResolver().ResolveHostnameAsync(ipAddress);
-
-            IsRunning = false;
-            return scanResult;
-        }
-
-        /// <summary>
-        /// Scans a given <see cref="PhysicalAddress"/> on the current network <see cref="Interface"/> 
-        /// and returns the <see cref="IpScanResult"/>.
-        /// </summary>
-        /// <param name="macAddress">The MAC address to scan.</param>
-        /// <returns>The <see cref="IpScanResult"/>.</returns>
-        public async Task<IpScanResult> ScanMacAddressAsync(PhysicalAddress macAddress)
-        {
-            IpScanResult scanResult = new IpScanResult
-            {
-                MacAddress = macAddress,
-                Manufacturer = Options.OuiMatcher?.GetOrganizationName(macAddress),
-                WasPinged = Options.SendPings,
-                WasArpRequested = Options.SendArpRequest
-            };
-
-            IPAddress ipAddress = await Task.Run(() => CreateIpAddressResolver().ResolveIpAddress(macAddress));
-            bool sentArp = false;
-
-            // If not found IP, try scanning the whole network.
-            if (ipAddress == IPAddress.None && Options.SendArpRequest)
-            {
-                NetworkScanner networkScanner = new NetworkScanner(Interface)
-                {
-                    Options = new NetworkScannerOptions
-                    {
-                        ArpTimeout = Options.ArpTimeout,
-                        SendArpRequest = true,
-                        Repeats = Options.Repeats,
-                        ShuffleIpAddresses = Options.ShuffleIpAddresses,
-                        ResolveHostnames = false,
-                        SendPings = false,
-                    }
-                };
-
-                ipAddress = (await networkScanner.ScanNetworkAsync())
-                    .Where(r => r.MacAddress.Equals(macAddress))
-                    .Select(r => r.IpAddress)
-                    .FirstOrDefault() ?? IPAddress.None;
-
-                sentArp = true;
-            }
-
-            if (ipAddress != IPAddress.None)
-            {
-                scanResult.IpAddress = ipAddress;
-
-                // If ARP is requested, reverse scan the IP address.
-                if (Options.SendArpRequest && !sentArp)
-                {
-                    IpScanResult ipScanResult = await ScanIpAddressAsync(ipAddress);
-
-                    if (ipScanResult.MacAddress.Equals(macAddress))
-                        return ipScanResult;
-                }
-
-                if (Options.SendPings)
-                    scanResult.RespondedToPing = await CreatePinger().PingIpAddressAsync(scanResult.IpAddress);
-
-                if (Options.ResolveHostnames && (scanResult.RespondedToPing || scanResult.RespondedToArp))
-                    scanResult.Hostname = await CreateHostnameResolver().ResolveHostnameAsync(scanResult.IpAddress);
-            }
-
-            return scanResult;
-        }
-
-        /// <summary>
-        /// Scans all the possible IP addresses on the network of the <see cref="Interface"/> asynchronously.
-        /// </summary>
-        /// <returns>The <see cref="IpScanResult"/>s of the network scan.</returns>
-        public Task<IList<IpScanResult>> ScanNetworkAsync() => Task.Run(ScanNetwork);
-
-        /// <summary>
-        /// Scans all the possible IP addresses on the network of the <see cref="Interface"/>.
-        /// </summary>
-        /// <returns>The <see cref="IpScanResult"/>s of the network scan.</returns>
-        public IList<IpScanResult> ScanNetwork()
-        {
-            if (IsRunning) throw new NetworkScannerRunningException();
-            IsRunning = true;
-
-            Debug.WriteLine("Getting all reachable IP addresses...");
-            IEnumerable<IPAddress> ipAddresses = Interface.GetAllNetworkHostIpAddresses();
             IEnumerable<IPAddress> respondingHosts = Array.Empty<IPAddress>();
             IDictionary<IPAddress, PhysicalAddress> macs;
             IDictionary<IPAddress, bool> pings;
             IDictionary<IPAddress, string> hostnames;
 
             if (Options.ShuffleIpAddresses)
-                ipAddresses = ipAddresses.OrderBy(ip => Guid.NewGuid());
+                ipAddresses = ipAddresses.OrderBy(ip => Guid.NewGuid()).ToArray();
 
             if (Options.SendArpRequest)
             {
@@ -225,14 +138,17 @@ namespace YonatanMankovich.WhatsOnLan.Core
                 hostnames = ipAddresses.ToDictionary(ip => ip, ip => string.Empty);
 
             Debug.WriteLine("Generating scan results...");
-            IList<IpScanResult> scanResults = new List<IpScanResult>();
+
+            IDictionary<IPAddress, IpScanResult> scanResults = new Dictionary<IPAddress, IpScanResult>();
+
             foreach (IPAddress ip in ipAddresses)
             {
-                IpScanResult scanResult = new IpScanResult();
-
-                scanResult.IpAddress = ip;
-                scanResult.WasPinged = Options.SendPings;
-                scanResult.WasArpRequested = Options.SendArpRequest;
+                IpScanResult scanResult = new IpScanResult
+                {
+                    IpAddress = ip,
+                    WasPinged = Options.SendPings,
+                    WasArpRequested = Options.SendArpRequest
+                };
 
                 if (Options.SendPings && pings.ContainsKey(ip))
                     scanResult.RespondedToPing = pings[ip];
@@ -243,6 +159,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
                 if (Options.SendArpRequest)
                 {
                     PhysicalAddress macAddress = macs[ip];
+
                     if (!macAddress.Equals(PhysicalAddress.None))
                     {
                         scanResult.MacAddress = macAddress;
@@ -250,11 +167,110 @@ namespace YonatanMankovich.WhatsOnLan.Core
                     }
                 }
 
-                scanResults.Add(scanResult);
+                scanResults[ip] = scanResult;
             }
+
             Debug.WriteLine("Done generating scan results!");
+
             IsRunning = false;
+
             return scanResults;
+        }
+
+        /// <summary>
+        /// Scans the given <see cref="PhysicalAddress"/> on the current network <see cref="Interface"/> 
+        /// and returns the <see cref="IpScanResult"/>.
+        /// </summary>
+        /// <param name="macAddress">The MAC address to scan.</param>
+        /// <returns>The <see cref="IpScanResult"/>.</returns>
+        public IpScanResult ScanMacAddress(PhysicalAddress macAddress)
+            => ScanMacAddresses(new HashSet<PhysicalAddress>(1) { macAddress })[macAddress];
+
+        /// <summary>
+        /// Scans the given <see cref="PhysicalAddress"/>es on the current network <see cref="Interface"/> 
+        /// and returns the <see cref="IpScanResult"/>s.
+        /// </summary>
+        /// <param name="macAddresses">The MAC addresses to scan.</param>
+        /// <returns>The <see cref="IpScanResult"/>s.</returns>
+        public IDictionary<PhysicalAddress, IpScanResult> ScanMacAddresses(IEnumerable<PhysicalAddress> macAddresses)
+        {
+            IsRunning = true;
+
+            IDictionary<PhysicalAddress, IpScanResult> results = macAddresses
+                .ToDictionary(mac => mac, mac => new IpScanResult
+                {
+                    MacAddress = mac,
+                    Manufacturer = Options.OuiMatcher?.GetOrganizationName(mac),
+                    WasArpRequested = Options.SendArpRequest
+                });
+
+            IDictionary<PhysicalAddress, IPAddress> macIpAddresses = CreateIpAddressResolver().ResolveIpAddresses(macAddresses);
+
+            foreach (KeyValuePair<PhysicalAddress, IPAddress> macIpAddress in macIpAddresses)
+                results[macIpAddress.Key].IpAddress = macIpAddress.Value;
+
+            IPAddress[] validIpAddresses = macIpAddresses.Values
+                        .Where(ip => !ip.Equals(IPAddress.None))
+                        .ToArray();
+
+            if (Options.SendArpRequest)
+            {
+                // If not found an IP, try scanning the whole network.
+                if (macIpAddresses.Any(ip => ip.Equals(IPAddress.None)))
+                {
+                    IsRunning = false;
+
+                    IDictionary<PhysicalAddress, IpScanResult> networkScanResults = ScanNetwork()
+                        .Where(r => results.ContainsKey(r.MacAddress)) // Get only relevant results.
+                        .ToDictionary(r => r.MacAddress);
+
+                    IsRunning = true;
+
+                    foreach (KeyValuePair<PhysicalAddress, IpScanResult> ipScanResult in networkScanResults)
+                        results[ipScanResult.Key] = ipScanResult.Value;
+
+                }
+                else // If found all IP addresses, reverse scan them.
+                {
+                    IsRunning = false;
+
+                    IEnumerable<IpScanResult> ipScanResults = ScanIpAddresses(validIpAddresses)
+                        .Select(r => r.Value)
+                        .Where(r => !r.MacAddress.Equals(PhysicalAddress.None))
+                        .Where(r => results.ContainsKey(r.MacAddress)); // Get only relevant results.
+
+                    IsRunning = true;
+
+                    foreach (IpScanResult ipScanResult in ipScanResults)
+                        results[ipScanResult.MacAddress] = ipScanResult;
+                }
+            }
+            else if (Options.SendPings || Options.ResolveHostnames)
+            {
+                IDictionary<IPAddress, IpScanResult> resultsByIp = results
+                    .Where(r => !r.Value.IpAddress.Equals(IPAddress.None))
+                    .ToDictionary(r => r.Value.IpAddress, r => r.Value);
+
+                if (Options.SendPings)
+                {
+                    IDictionary<IPAddress, bool> pings = CreatePinger().PingIpAddresses(validIpAddresses);
+
+                    foreach (KeyValuePair<IPAddress, bool> ping in pings)
+                        resultsByIp[ping.Key].RespondedToPing = ping.Value;
+                }
+
+                if (Options.ResolveHostnames)
+                {
+                    IDictionary<IPAddress, string> hostnames = CreateHostnameResolver().ResolveHostnames(validIpAddresses);
+
+                    foreach (KeyValuePair<IPAddress, string> ping in hostnames)
+                        resultsByIp[ping.Key].Hostname = ping.Value;
+                }
+            }
+
+            IsRunning = false;
+
+            return results;
         }
 
         private HostnameResolver CreateHostnameResolver()

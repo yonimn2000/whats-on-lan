@@ -79,7 +79,7 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
             {
                 PhysicalAddress mac = PhysicalAddress.Parse(m.Groups["mac"].Value);
 
-                if (!mip.ContainsKey(mac) || mip[mac] == IPAddress.None)
+                if (mip.ContainsKey(mac) && mip[mac] == IPAddress.None)
                     mip[mac] = IPAddress.Parse(m.Groups["ip"].Value);
             }
         }

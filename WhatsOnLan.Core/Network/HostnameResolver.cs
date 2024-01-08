@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 
@@ -35,12 +36,13 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
         /// </returns>
         public IDictionary<IPAddress, string> ResolveHostnames(IEnumerable<IPAddress> ipAddresses)
         {
-            Dictionary<IPAddress, string> resolutions = ipAddresses.ToDictionary(ip => ip, ip => string.Empty);
+            IDictionary<IPAddress, string> resolutions
+                = new ConcurrentDictionary<IPAddress, string>(ipAddresses.ToDictionary(ip => ip, ip => string.Empty));
 
-            Task.WaitAll(ipAddresses.Select(ip => Task.Run(async () =>
+            Parallel.ForEach(ipAddresses, (ip) =>
             {
-                resolutions[ip] = await ResolveHostnameAsync(ip);
-            })).ToArray());
+                resolutions[ip] = ResolveHostname(ip);
+            });
 
             return resolutions;
         }
@@ -53,9 +55,10 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
         /// The resolved hostname of the given <see cref="IPAddress"/>.
         /// If a hostname is not found, <see cref="string.Empty"/> is returned.
         /// </returns>
-        public async Task<string> ResolveHostnameAsync(IPAddress ipAddress)
+        public string ResolveHostname(IPAddress ipAddress)
         {
             int tries = 0;
+
             do
             {
                 try

@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.NetworkInformation;
 using YonatanMankovich.WhatsOnLan.Core.Exceptions;
@@ -30,6 +31,9 @@ namespace YonatanMankovich.WhatsOnLan.Core
             get => isRunning;
             private set
             {
+                if (value && isRunning)
+                    throw new NetworkScannerRunningException();
+
                 isRunning = value;
                 StateHasChanged?.Invoke(this, System.EventArgs.Empty);
             }
@@ -39,7 +43,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
         public event EventHandler? StateHasChanged;
 
         /// <summary>
-        /// Initilizes <see cref="NetworkScanners"/> with all network interfaces available on the current machine.
+        /// Initializes <see cref="NetworkScanners"/> with all network interfaces available on the current machine.
         /// </summary>
         public void InitializeWithAllActiveInterfaces()
         {
@@ -51,65 +55,93 @@ namespace YonatanMankovich.WhatsOnLan.Core
         }
 
         /// <inheritdoc/>
-        public async Task<IpScanResult> ScanIpAddressAsync(IPAddress ipAddress)
-        {
-            if (IsRunning) throw new NetworkScannerRunningException();
-            INetworkScanner? scanner = Scanners.FirstOrDefault(s => s.IsIpAddressOnCurrentNetwork(ipAddress));
-
-            if (scanner == null)
-                throw new IpAddressNotOnNetworkException(ipAddress);
-
-            IsRunning = true;
-            IpScanResult result = await scanner.ScanIpAddressAsync(ipAddress);
-            IsRunning = false;
-            return result;
-        }
-
-        /// <inheritdoc/>
-        public async Task<IpScanResult> ScanMacAddressAsync(PhysicalAddress macAddress)
-        {
-            IpScanResult result = new IpScanResult();
-
-            await Parallel.ForEachAsync(Scanners, async (scanner, cancelToken) =>
-            {
-                IpScanResult currentResult = await scanner.ScanMacAddressAsync(macAddress);
-
-                if (currentResult.IsOnline)
-                    result = currentResult;
-            });
-
-            return result;
-        }
-
-        /// <inheritdoc/>
-        public bool IsIpAddressOnCurrentNetwork(IPAddress ipAddress)
+        public bool IsIpAddressOnScannerNetwork(IPAddress ipAddress)
         {
             foreach (INetworkScanner scanner in Scanners)
-                if (scanner.IsIpAddressOnCurrentNetwork(ipAddress))
+                if (scanner.IsIpAddressOnScannerNetwork(ipAddress))
                     return true;
 
             return false;
         }
 
         /// <inheritdoc/>
-        public Task<IList<IpScanResult>> ScanNetworkAsync() => Task.Run(ScanNetwork);
+        public ICollection<IpScanResult> ScanNetwork()
+        {
+            IsRunning = true;
+
+            ICollection<IpScanResult> results = Scanners.SelectMany(s => s.ScanNetwork()).ToList();
+
+            IsRunning = false;
+
+            return results;
+        }
 
         /// <inheritdoc/>
-        public IList<IpScanResult> ScanNetwork()
+        public IpScanResult ScanIpAddress(IPAddress ipAddress)
+            => ScanIpAddresses(new HashSet<IPAddress>(1) { ipAddress })[ipAddress];
+
+        /// <inheritdoc/>
+        public IDictionary<IPAddress, IpScanResult> ScanIpAddresses(IEnumerable<IPAddress> ipAddresses)
         {
-            if (IsRunning) throw new NetworkScannerRunningException();
             IsRunning = true;
-            IList<IpScanResult> results = Scanners.SelectMany(s => s.ScanNetwork()).ToList();
+
+            IDictionary<INetworkScanner, ISet<IPAddress>> scannerIps = new Dictionary<INetworkScanner, ISet<IPAddress>>();
+
+            // Assign each IP address to its corresponding network scanner.
+            foreach (IPAddress ipAddress in ipAddresses)
+            {
+                INetworkScanner? scanner = Scanners.FirstOrDefault(s => s.IsIpAddressOnScannerNetwork(ipAddress))
+                    ?? throw new IpAddressNotOnNetworkException(ipAddress);
+
+                if (!scannerIps.ContainsKey(scanner))
+                    scannerIps[scanner] = new HashSet<IPAddress>();
+
+                scannerIps[scanner].Add(ipAddress);
+            }
+
+            IDictionary<IPAddress, IpScanResult> results = new ConcurrentDictionary<IPAddress, IpScanResult>();
+
+            Parallel.ForEach(scannerIps, (KeyValuePair<INetworkScanner, ISet<IPAddress>> scannerIpSet) =>
+            {
+                IDictionary<IPAddress, IpScanResult> scannerResults = scannerIpSet.Key.ScanIpAddresses(scannerIpSet.Value);
+
+                foreach (KeyValuePair<IPAddress, IpScanResult> result in scannerResults)
+                    results.Add(result);
+            });
+
             IsRunning = false;
+
+            return results;
+        }
+
+        /// <inheritdoc/>
+        public IpScanResult ScanMacAddress(PhysicalAddress macAddress)
+            => ScanMacAddresses(new HashSet<PhysicalAddress>(1) { macAddress })[macAddress];
+
+        /// <inheritdoc/>
+        public IDictionary<PhysicalAddress, IpScanResult> ScanMacAddresses(IEnumerable<PhysicalAddress> macAddresses)
+        {
+            IsRunning = true;
+
+            IDictionary<PhysicalAddress, IpScanResult> results = new ConcurrentDictionary<PhysicalAddress, IpScanResult>();
+
+            Parallel.ForEach(Scanners, (scanner) =>
+            {
+                IDictionary<PhysicalAddress, IpScanResult> currentResults = scanner.ScanMacAddresses(macAddresses);
+
+                foreach (KeyValuePair<PhysicalAddress, IpScanResult> result in currentResults)
+                    if (!results.ContainsKey(result.Key) || (results.ContainsKey(result.Key) && !results[result.Key].IsOnline))
+                        results[result.Key] = result.Value;
+            });
+
+            IsRunning = false;
+
             return results;
         }
 
         /// <inheritdoc/>
         public IEnumerator<INetworkScanner> GetEnumerator() => Scanners.GetEnumerator();
 
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return Scanners.GetEnumerator();
-        }
+        IEnumerator IEnumerable.GetEnumerator() => Scanners.GetEnumerator();
     }
 }

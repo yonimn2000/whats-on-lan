@@ -1,11 +1,12 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
 
 namespace YonatanMankovich.WhatsOnLan.Core.Network
 {
     /// <summary>
-    /// Provides mehtods for pinging <see cref="IPAddress"/>es.
+    /// Provides methods for pinging <see cref="IPAddress"/>es.
     /// </summary>
     public class Pinger
     {
@@ -26,7 +27,8 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
         /// <returns>A dictionary of the ping status of each IP address.</returns>
         public IDictionary<IPAddress, bool> PingIpAddresses(IEnumerable<IPAddress> ipAddresses)
         {
-            Dictionary<IPAddress, bool> pings = ipAddresses.ToDictionary(ip => ip, ip => false);
+            IDictionary<IPAddress, bool> pings
+                = new ConcurrentDictionary<IPAddress, bool>(ipAddresses.ToDictionary(ip => ip, ip => false));
 
             Task.WaitAll(ipAddresses.Select(ip => Task.Run(async () =>
             {
@@ -35,6 +37,13 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
 
             return pings;
         }
+
+        /// <summary>
+        /// Pings a single <see cref="IPAddress"/>.
+        /// </summary>
+        /// <param name="ip">The <see cref="IPAddress"/> to ping.</param>
+        /// <returns><see langword="true"/> if ping was successful; <see langword="false"/> otherwise.</returns>
+        public bool PingIpAddress(IPAddress ip) => PingIpAddressAsync(ip).GetAwaiter().GetResult();
 
         /// <summary>
         /// Pings a single <see cref="IPAddress"/>.
