@@ -1,7 +1,7 @@
 ﻿using YonatanMankovich.WhatsOnLan.Core;
 using YonatanMankovich.WhatsOnLan.Core.Hardware;
-using YonatanMankovich.WhatsOnLan.Core.OUI;
 using YonatanMankovich.WhatsOnLan.Core.Helpers;
+using YonatanMankovich.WhatsOnLan.Core.OUI;
 
 // The path were to save and load the OUI CSV file from.
 string ouiCsvFilePath = "OUI.csv";
@@ -18,17 +18,49 @@ Console.WriteLine("Reading OUI file...");
 IOuiMatcher ouiMatcher = new OuiMatcher(OuiCsvFileHelpers.ReadOuiCsvFileLines(ouiCsvFilePath));
 
 // Get all active network interfaces.
-Console.WriteLine("Getting all network interfaces...");
-HashSet<PcapNetworkInterface> networkInterfaces = NetworkInterfaceHelpers.GetAllDistinctPcapNetworkInterfaces().ToHashSet();
+Console.WriteLine("Getting all network interfaces...\n");
+List<PcapNetworkInterface> networkInterfaces = NetworkInterfaceHelpers.GetAllDistinctPcapNetworkInterfaces().ToList();
+List<PcapNetworkInterface> selectedInterfaces = new List<PcapNetworkInterface>();
 
-Console.WriteLine("\nActive network interfaces:");
-foreach (PcapNetworkInterface networkInterface in networkInterfaces)
-    Console.WriteLine("  - " + networkInterface);
+if (networkInterfaces.Count == 1) // If only one interface, scan it.
+{
+    Console.WriteLine("Active network interface: " + networkInterfaces.First());
+    selectedInterfaces = networkInterfaces;
+}
+else if (networkInterfaces.Count == 0) // If no interfaces, exit.
+{
+    Console.WriteLine("No active network interfaces found...");
+    return;
+}
+else // If more than one interface, let the user select which ones to scan.
+{
+    Console.WriteLine("Select interface(s) to scan by number (comma-separated). Press Enter for all:");
+
+    for (int i = 0; i < networkInterfaces.Count; i++)
+        Console.WriteLine($" {i + 1}: " + networkInterfaces[i]);
+
+    string? input = Console.ReadLine()?.Trim();
+
+    if (string.IsNullOrWhiteSpace(input))
+        selectedInterfaces = networkInterfaces;
+    else
+    {
+        string[] indices = input.Split(',');
+
+        foreach (string index in indices)
+        {
+            if (int.TryParse(index.Trim(), out int j) && j > 0 && j <= networkInterfaces.Count)
+                selectedInterfaces.Add(networkInterfaces[j - 1]);
+            else
+                Console.WriteLine($"Skipping invalid input: '{index}'.");
+        }
+    }
+}
 
 do
 {
     // Run the scanner for every active interface separately.
-    foreach (PcapNetworkInterface networkInterface in networkInterfaces)
+    foreach (PcapNetworkInterface networkInterface in selectedInterfaces)
     {
         // Create a network scanner.
         NetworkScanner networkScanner = new NetworkScanner(networkInterface)
