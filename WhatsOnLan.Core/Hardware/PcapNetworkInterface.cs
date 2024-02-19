@@ -85,9 +85,10 @@ namespace YonatanMankovich.WhatsOnLan.Core.Hardware
             return IpAddressHelpers.GetAllHostAddresses(IpAddress, SubnetMask);
         }
 
+        /// <inheritdoc/>
         public override string ToString()
         {
-            return $"{Name} {MacAddress} {IpAddress}";
+            return $"{Name} {MacAddress} {IpAddress} {SubnetMask} (/{SubnetMask.ToSlashNotation()}) ({Network} - {Broadcast})";
         }
     }
 }

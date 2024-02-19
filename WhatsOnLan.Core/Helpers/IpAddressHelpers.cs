@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Net.Sockets;
 
 namespace YonatanMankovich.WhatsOnLan.Core.Helpers
 {
@@ -49,6 +50,57 @@ namespace YonatanMankovich.WhatsOnLan.Core.Helpers
                 broadcastAddress[i] = (byte)(ipAdressBytes[i] & (subnetMaskBytes[i]));
 
             return new IPAddress(broadcastAddress);
+        }
+
+        /// <summary>
+        /// Converts the subnet mask represented by this IPAddress into its corresponding slash notation (CIDR notation).
+        /// </summary>
+        /// <param name="subnetMask">The subnet mask IPAddress to convert.</param>
+        /// <returns>The slash notation representing the subnet mask.</returns>
+        /// <exception cref="ArgumentException">Thrown when the IPAddress is not an IPv4 address.</exception>
+        public static int ToSlashNotation(this IPAddress subnetMask)
+        {
+            byte[] bytes = subnetMask.GetAddressBytes();
+
+            if (bytes.Length != 4 || subnetMask.AddressFamily != AddressFamily.InterNetwork)
+                throw new ArgumentException($"Invalid IPv4 address: {subnetMask}", nameof(subnetMask));
+
+            if (!subnetMask.IsValidSubnetMask())
+                throw new ArgumentException($"Not a valid subnet mask: {subnetMask}", nameof(subnetMask));
+
+            uint mask = BitConverter.ToUInt32(bytes, 0);
+            int slashCount = 0;
+
+            while ((mask & 1) == 1)
+            {
+                slashCount++;
+                mask >>= 1;
+            }
+
+            return slashCount;
+        }
+
+        /// <summary> Checks whether the IPAddress represents a valid subnet mask </summary>
+        /// <param name="subnetMask">The IPAddress to check.</param>
+        /// <returns>True if the IPAddress is a valid subnet mask; otherwise, false.</returns>
+        /// <remarks>A valid subnet mask consists of consecutive 1 bits followed by consecutive 0 bits.</remarks>
+        public static bool IsValidSubnetMask(this IPAddress subnetMask)
+        {
+            byte[] bytes = subnetMask.GetAddressBytes();
+
+            if (bytes.Length != 4 || subnetMask.AddressFamily != AddressFamily.InterNetwork)
+                return false;
+
+            // A valid mask should start with ones, and end with zeros 0b111...111000...000
+            // 2) XOR to flip all the bits (0b000...000111...111)
+            // 3) Add 1, causing all those 1's to become 0's. (0b000...001000...000)
+            // An invalid address will have leading 1's that are untouched by this step. (0b101...001000...000)
+            // 4) AND the two values together, to detect if any leading 1's remain
+
+            uint val = (uint)IPAddress.NetworkToHostOrder(BitConverter.ToInt32(bytes));
+            uint invertedVal = val ^ uint.MaxValue;
+
+            return (invertedVal + 1 & invertedVal) == 0;
         }
 
         /// <summary>
