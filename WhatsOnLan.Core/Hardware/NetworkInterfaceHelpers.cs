@@ -1,5 +1,7 @@
 ﻿using System.Net.NetworkInformation;
 
+using System.Net.Sockets;
+
 namespace YonatanMankovich.WhatsOnLan.Core.Hardware
 {
     /// <summary>
@@ -27,13 +29,15 @@ namespace YonatanMankovich.WhatsOnLan.Core.Hardware
         }
 
         /// <summary>
-        /// Gets all active non-loopback network interfaces.
+        /// Gets all active non-loopback network interfaces that have an IPv4 address.
         /// </summary>
         private static IEnumerable<NetworkInterface> GetAllActiveInterfaces()
         {
             return NetworkInterface.GetAllNetworkInterfaces()
                 .Where(nic => nic.OperationalStatus == OperationalStatus.Up
-                    && nic.NetworkInterfaceType != NetworkInterfaceType.Loopback);
+                    && nic.NetworkInterfaceType != NetworkInterfaceType.Loopback
+                    && nic.GetIPProperties().UnicastAddresses
+                        .Any(address => address.Address.AddressFamily == AddressFamily.InterNetwork));
         }
     }
 }
