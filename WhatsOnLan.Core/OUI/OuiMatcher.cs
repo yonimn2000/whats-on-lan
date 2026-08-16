@@ -27,11 +27,21 @@ namespace YonatanMankovich.WhatsOnLan.Core.OUI
             Matcher = OuiCsvFileHelpers.ConvertOuiAssignmentsToDictionary(ouiAssignments);
         }
 
+        /// <summary>
+        /// Gets the organization name associated with the given <see cref="PhysicalAddress"/>.
+        /// </summary>
+        /// <param name="macAddress">The MAC address to look up.</param>
+        /// <returns>The organization name, or an empty string when no matching assignment is found.</returns>
         public string GetOrganizationName(PhysicalAddress macAddress)
         {
             return GetOrganizationName(macAddress.ToString());
         }
 
+        /// <summary>
+        /// Gets the organization name associated with the given MAC address string.
+        /// </summary>
+        /// <param name="macAddress">The MAC address string to look up.</param>
+        /// <returns>The organization name, or an empty string when no matching assignment is found.</returns>
         public string GetOrganizationName(string macAddress)
         {
             string assignment = macAddress.Substring(0, 6);

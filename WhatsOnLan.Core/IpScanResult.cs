@@ -64,6 +64,10 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// </summary>
         public bool HasHostname => !string.IsNullOrWhiteSpace(Hostname);
 
+        /// <summary>
+        /// Returns a string that represents this scan result.
+        /// </summary>
+        /// <returns>A string containing the scanned IP address and available result details.</returns>
         public override string ToString()
         {
             StringBuilder stringBuilder = new StringBuilder();
