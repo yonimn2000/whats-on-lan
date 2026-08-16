@@ -21,19 +21,42 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(1);
 
         /// <summary>
+        /// Gets or sets the maximum number of ping operations that may run at once.
+        /// </summary>
+        public int MaxDegreeOfParallelism { get; set; } = 256;
+
+        /// <summary>
         /// Pings the provided <see cref="IPAddress"/>es.
         /// </summary>
         /// <param name="ipAddresses">The <see cref="IPAddress"/>es to ping.</param>
         /// <returns>A dictionary of the ping status of each IP address.</returns>
         public IDictionary<IPAddress, bool> PingIpAddresses(IEnumerable<IPAddress> ipAddresses)
-        {
-            IDictionary<IPAddress, bool> pings
-                = new ConcurrentDictionary<IPAddress, bool>(ipAddresses.ToDictionary(ip => ip, ip => false));
+            => PingIpAddressesAsync(ipAddresses).GetAwaiter().GetResult();
 
-            Task.WaitAll(ipAddresses.Select(ip => Task.Run(async () =>
+        /// <summary>
+        /// Pings the provided <see cref="IPAddress"/>es asynchronously with bounded concurrency.
+        /// </summary>
+        /// <param name="ipAddresses">The <see cref="IPAddress"/>es to ping.</param>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
+        /// <returns>A dictionary of the ping status of each IP address.</returns>
+        public async Task<IDictionary<IPAddress, bool>> PingIpAddressesAsync(
+            IEnumerable<IPAddress> ipAddresses, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(ipAddresses);
+            if (MaxDegreeOfParallelism <= 0)
+                throw new InvalidOperationException("MaxDegreeOfParallelism must be greater than zero.");
+
+            IPAddress[] addresses = ipAddresses.Distinct().ToArray();
+            ConcurrentDictionary<IPAddress, bool> pings = new(addresses.ToDictionary(ip => ip, _ => false));
+
+            await Parallel.ForEachAsync(addresses, new ParallelOptions
             {
-                pings[ip] = await PingIpAddressAsync(ip);
-            })).ToArray());
+                MaxDegreeOfParallelism = MaxDegreeOfParallelism,
+                CancellationToken = cancellationToken
+            }, async (ip, token) =>
+            {
+                pings[ip] = await PingIpAddressAsync(ip, token).ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
             return pings;
         }
@@ -49,22 +72,30 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
         /// Pings a single <see cref="IPAddress"/>.
         /// </summary>
         /// <param name="ip">The <see cref="IPAddress"/> to ping.</param>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
         /// <returns><see langword="true"/> if ping was successful; <see langword="false"/> otherwise.</returns>
-        public async Task<bool> PingIpAddressAsync(IPAddress ip)
+        public async Task<bool> PingIpAddressAsync(IPAddress ip, CancellationToken cancellationToken = default)
         {
+            ArgumentNullException.ThrowIfNull(ip);
+
+            int retries = Math.Max(1, Retries);
+            TimeSpan timeout = GetTimeout();
+
             try
             {
                 int tries = 0;
+                using Ping ping = new();
 
                 do
                 {
-                    PingReply reply = await new Ping().SendPingAsync(ip, Timeout.Milliseconds);
+                    PingReply reply = await ping.SendPingAsync(
+                        ip, timeout, Array.Empty<byte>(), new PingOptions(), cancellationToken).ConfigureAwait(false);
 
                     if (reply.Status == IPStatus.Success)
                         return true;
 
                     tries++;
-                } while (tries < Retries);
+                } while (tries < retries);
             }
             catch (PingException pe)
             {
@@ -73,6 +104,14 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
             }
 
             return false;
+        }
+
+        private TimeSpan GetTimeout()
+        {
+            if (Timeout <= TimeSpan.Zero)
+                throw new InvalidOperationException("Timeout must be greater than zero.");
+
+            return Timeout;
         }
     }
 }

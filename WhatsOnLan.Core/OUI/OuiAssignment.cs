@@ -36,7 +36,7 @@ namespace YonatanMankovich.WhatsOnLan.Core.OUI
             if (!IsOrganizationValid(organization))
                 throw new ArgumentException("OUI organization name must not be empty.", organization);
 
-            Assignment = assignment.ToUpper();
+            Assignment = assignment.ToUpperInvariant();
             Organization = organization;
         }
 
@@ -58,7 +58,7 @@ namespace YonatanMankovich.WhatsOnLan.Core.OUI
         /// Returns <see langword="true"/> if the given OUI assignment is of the correct format;
         /// <see langword="false"/> otherwise.
         /// </returns>
-        public static bool IsAssignmentOfCorrectFormat(string assignment) => Regex.IsMatch(assignment, "[0-9a-fA-F]{6}");
+        public static bool IsAssignmentOfCorrectFormat(string assignment) => Regex.IsMatch(assignment, "^[0-9a-fA-F]{6}$");
 
         /// <summary>
         /// Gets a value indicating whether an OUI assignment is of the correct format of six consecutive hexadecimal digits.

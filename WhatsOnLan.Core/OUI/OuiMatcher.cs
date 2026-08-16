@@ -44,8 +44,20 @@ namespace YonatanMankovich.WhatsOnLan.Core.OUI
         /// <returns>The organization name, or an empty string when no matching assignment is found.</returns>
         public string GetOrganizationName(string macAddress)
         {
-            string assignment = macAddress.Substring(0, 6);
-            return Matcher.ContainsKey(assignment) ? Matcher[assignment] : string.Empty;
+            ArgumentNullException.ThrowIfNull(macAddress);
+
+            string normalizedMacAddress = macAddress.Trim()
+                .Replace("-", string.Empty, StringComparison.Ordinal)
+                .Replace(":", string.Empty, StringComparison.Ordinal);
+            if (normalizedMacAddress.Length < 6
+                || normalizedMacAddress.Any(c => !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))))
+                return string.Empty;
+
+            string assignment = normalizedMacAddress[..6].ToUpperInvariant();
+
+            return Matcher.TryGetValue(assignment, out string? organization)
+                ? organization
+                : string.Empty;
         }
     }
 }

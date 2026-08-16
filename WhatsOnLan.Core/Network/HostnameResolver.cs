@@ -27,6 +27,11 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(1);
 
         /// <summary>
+        /// Gets or sets the maximum number of hostname lookups that may run at once.
+        /// </summary>
+        public int MaxDegreeOfParallelism { get; set; } = 128;
+
+        /// <summary>
         /// Resolves the hostnames of the provided <see cref="IPAddress"/>es.
         /// </summary>
         /// <param name="ipAddresses">The <see cref="IPAddress"/>es to resolve hostnames for.</param>
@@ -35,14 +40,32 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
         /// If a hostname is not found, <see cref="string.Empty"/> is returned.
         /// </returns>
         public IDictionary<IPAddress, string> ResolveHostnames(IEnumerable<IPAddress> ipAddresses)
-        {
-            IDictionary<IPAddress, string> resolutions
-                = new ConcurrentDictionary<IPAddress, string>(ipAddresses.ToDictionary(ip => ip, ip => string.Empty));
+            => ResolveHostnamesAsync(ipAddresses).GetAwaiter().GetResult();
 
-            Parallel.ForEach(ipAddresses, (ip) =>
+        /// <summary>
+        /// Resolves the hostnames of the provided <see cref="IPAddress"/>es asynchronously with bounded concurrency.
+        /// </summary>
+        /// <param name="ipAddresses">The <see cref="IPAddress"/>es to resolve hostnames for.</param>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
+        /// <returns>The resolved hostnames of the given <see cref="IPAddress"/>es.</returns>
+        public async Task<IDictionary<IPAddress, string>> ResolveHostnamesAsync(
+            IEnumerable<IPAddress> ipAddresses, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(ipAddresses);
+            if (MaxDegreeOfParallelism <= 0)
+                throw new InvalidOperationException("MaxDegreeOfParallelism must be greater than zero.");
+
+            IPAddress[] addresses = ipAddresses.Distinct().ToArray();
+            ConcurrentDictionary<IPAddress, string> resolutions = new(addresses.ToDictionary(ip => ip, _ => string.Empty));
+
+            await Parallel.ForEachAsync(addresses, new ParallelOptions
             {
-                resolutions[ip] = ResolveHostname(ip);
-            });
+                MaxDegreeOfParallelism = MaxDegreeOfParallelism,
+                CancellationToken = cancellationToken
+            }, async (ip, token) =>
+            {
+                resolutions[ip] = await ResolveHostnameAsync(ip, token).ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
             return resolutions;
         }
@@ -56,24 +79,44 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
         /// If a hostname is not found, <see cref="string.Empty"/> is returned.
         /// </returns>
         public string ResolveHostname(IPAddress ipAddress)
+            => ResolveHostnameAsync(ipAddress).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// Resolves the hostname of the provided <see cref="IPAddress"/> asynchronously.
+        /// </summary>
+        /// <param name="ipAddress">The <see cref="IPAddress"/> to resolve a hostname for.</param>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
+        /// <returns>The resolved hostname, or <see cref="string.Empty"/> if none is found.</returns>
+        public async Task<string> ResolveHostnameAsync(IPAddress ipAddress, CancellationToken cancellationToken = default)
         {
+            ArgumentNullException.ThrowIfNull(ipAddress);
+            if (Timeout <= TimeSpan.Zero)
+                throw new InvalidOperationException("Timeout must be greater than zero.");
+
+            int retries = Math.Max(1, Retries);
             int tries = 0;
 
             do
             {
                 try
                 {
-                    Task<IPHostEntry> task = Dns.GetHostEntryAsync(ipAddress);
+                    using CancellationTokenSource timeoutCancellation =
+                        CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    timeoutCancellation.CancelAfter(Timeout);
 
-                    if (!task.Wait(Timeout))
-                        throw new TimeoutException();
+                    IPHostEntry entry = await Dns.GetHostEntryAsync(ipAddress.ToString(), timeoutCancellation.Token)
+                        .ConfigureAwait(false);
 
-                    string hostname = task.Result.HostName;
+                    string hostname = entry.HostName;
+                    if (string.IsNullOrWhiteSpace(DnsSuffixToStrip))
+                        return hostname;
 
-                    return string.IsNullOrWhiteSpace(DnsSuffixToStrip) ? hostname
-                        : hostname.Replace('.' + DnsSuffixToStrip, "", StringComparison.InvariantCultureIgnoreCase);
+                    string suffix = "." + DnsSuffixToStrip.Trim('.');
+                    return hostname.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+                        ? hostname[..^suffix.Length]
+                        : hostname;
                 }
-                catch (TimeoutException)
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
                     Debug.WriteLine($"Hostname resolution of the IP address of {ipAddress} has timed out.");
                 }
@@ -82,7 +125,7 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
                     Debug.WriteLine($"Cannot find the hostname of the IP address of {ipAddress}.");
                 }
                 tries++;
-            } while (tries < Retries);
+            } while (tries < retries);
 
             return string.Empty;
         }

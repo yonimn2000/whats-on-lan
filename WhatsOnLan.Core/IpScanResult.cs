@@ -27,17 +27,17 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <summary>
         /// Indicates whether the scanned target device was sent an ARP request.
         /// </summary>
-        public bool WasArpRequested { get; internal set; } = false;
+        public bool WasArpRequested { get; internal set; }
 
         /// <summary>
         /// Indicates whether the scanned target device was pinged.
         /// </summary>
-        public bool WasPinged { get; internal set; } = false;
+        public bool WasPinged { get; internal set; }
 
         /// <summary>
         /// Indicates whether the scanned target device responded to ping.
         /// </summary>
-        public bool RespondedToPing { get; internal set; } = false;
+        public bool RespondedToPing { get; internal set; }
 
         /// <summary>
         /// The manufacturer of the NIC of the scanned target device as determined by IEEE OUI.
@@ -47,7 +47,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <summary>
         /// Indicates whether the scanned target device responded to the ARP request if sent.
         /// </summary>
-        public bool RespondedToArp => WasArpRequested && !MacAddress.Equals(PhysicalAddress.None);
+        public bool RespondedToArp { get; internal set; }
 
         /// <summary>
         /// Indicates whether the scanned target device was online during the scan as determined by the ping or ARP responses.

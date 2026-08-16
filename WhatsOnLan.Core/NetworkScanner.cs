@@ -14,7 +14,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
     /// </summary>
     public class NetworkScanner : INetworkScanner
     {
-        private bool isRunning;
+        private int isRunning;
 
         /// <summary>
         /// The network scanner options.
@@ -29,18 +29,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <summary>
         /// Gets the running status of the <see cref="NetworkScanner"/>.
         /// </summary>
-        public bool IsRunning
-        {
-            get => isRunning;
-            private set
-            {
-                if (value && isRunning)
-                    throw new NetworkScannerRunningException();
-
-                isRunning = value;
-                StateHasChanged?.Invoke(this, System.EventArgs.Empty);
-            }
-        }
+        public bool IsRunning => Volatile.Read(ref isRunning) != 0;
 
         /// <summary>
         /// Initializes an instance of the <see cref="NetworkScanner"/> objects with a <see cref="PcapNetworkInterface"/>.
@@ -74,12 +63,20 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// </summary>
         /// <returns>The <see cref="IpScanResult"/>s of the network scan.</returns>
         public ICollection<IpScanResult> ScanNetwork()
+            => ExecuteScan(ScanNetworkCoreAsync);
+
+        /// <inheritdoc/>
+        public Task<ICollection<IpScanResult>> ScanNetworkAsync(CancellationToken cancellationToken = default)
+            => ExecuteScanAsync(ScanNetworkCoreAsync, cancellationToken);
+
+        private async Task<ICollection<IpScanResult>> ScanNetworkCoreAsync(CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             Debug.WriteLine("Getting all reachable IP addresses...");
             IPAddress[] ipAddresses = Interface.GetAllNetworkHostIpAddresses().ToArray();
             Debug.WriteLine($"{ipAddresses.Length:N0} possible hosts on the {Interface.Network} network.");
 
-            return ScanIpAddresses(ipAddresses).Values;
+            return (await ScanIpAddressesCoreAsync(ipAddresses, cancellationToken).ConfigureAwait(false)).Values;
         }
 
         /// <summary>
@@ -92,6 +89,12 @@ namespace YonatanMankovich.WhatsOnLan.Core
         public IpScanResult ScanIpAddress(IPAddress ipAddress)
             => ScanIpAddresses(new HashSet<IPAddress>(1) { ipAddress })[ipAddress];
 
+        /// <inheritdoc/>
+        public async Task<IpScanResult> ScanIpAddressAsync(
+            IPAddress ipAddress, CancellationToken cancellationToken = default)
+            => (await ScanIpAddressesAsync(new HashSet<IPAddress>(1) { ipAddress }, cancellationToken)
+                .ConfigureAwait(false))[ipAddress];
+
         /// <summary>
         /// Scans the given <see cref="IPAddress"/>es on the current network <see cref="Interface"/> 
         /// and returns the <see cref="IpScanResult"/>s.
@@ -100,48 +103,89 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <returns>The <see cref="IpScanResult"/>s.</returns>
         /// <exception cref="ArgumentException"></exception>
         public IDictionary<IPAddress, IpScanResult> ScanIpAddresses(IEnumerable<IPAddress> ipAddresses)
-        {
-            IsRunning = true;
+            => ExecuteScan(ScanIpAddressesCoreAsync, ipAddresses);
 
-            IEnumerable<IPAddress> respondingHosts = Array.Empty<IPAddress>();
+        /// <inheritdoc/>
+        public Task<IDictionary<IPAddress, IpScanResult>> ScanIpAddressesAsync(
+            IEnumerable<IPAddress> ipAddresses, CancellationToken cancellationToken = default)
+            => ExecuteScanAsync(ct => ScanIpAddressesCoreAsync(ipAddresses, ct), cancellationToken);
+
+        private async Task<IDictionary<IPAddress, IpScanResult>> ScanIpAddressesCoreAsync(
+            IEnumerable<IPAddress> ipAddresses, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(ipAddresses);
+            cancellationToken.ThrowIfCancellationRequested();
+            IPAddress[] addresses = ipAddresses.Distinct().ToArray();
+
             IDictionary<IPAddress, PhysicalAddress> macs;
             IDictionary<IPAddress, bool> pings;
             IDictionary<IPAddress, string> hostnames;
 
             if (Options.ShuffleIpAddresses)
-                ipAddresses = ipAddresses.OrderBy(ip => Guid.NewGuid()).ToArray();
+                addresses = addresses.OrderBy(_ => Guid.NewGuid()).ToArray();
+
+            Task<IDictionary<IPAddress, PhysicalAddress>>? macResolutionTask = null;
+            Task<IDictionary<IPAddress, bool>>? pingTask = null;
 
             if (Options.SendArpRequest)
             {
                 Debug.WriteLine("Resolving MAC addresses...");
-                macs = CreateMacAddressResolver().ResolveMacAddresses(ipAddresses);
-                respondingHosts = macs.Where(m => !m.Value.Equals(PhysicalAddress.None)).Select(m => m.Key);
+                macResolutionTask = Task.Run(
+                    () => CreateMacAddressResolver().ResolveMacAddresses(addresses), cancellationToken);
             }
-            else
-                macs = ipAddresses.ToDictionary(ip => ip, ip => PhysicalAddress.None);
 
             if (Options.SendPings)
             {
                 Debug.WriteLine("Pinging all IP addresses...");
-                pings = CreatePinger().PingIpAddresses(ipAddresses);
-                respondingHosts = respondingHosts.Union(pings.Where(p => p.Value).Select(p => p.Key));
+                pingTask = CreatePinger().PingIpAddressesAsync(addresses, cancellationToken);
             }
-            else
-                pings = ipAddresses.ToDictionary(ip => ip, ip => false);
+
+            if (macResolutionTask is not null && pingTask is not null)
+                await Task.WhenAll(macResolutionTask, pingTask).ConfigureAwait(false);
+
+            macs = macResolutionTask is not null
+                ? await macResolutionTask.ConfigureAwait(false)
+                : addresses.ToDictionary(ip => ip, _ => PhysicalAddress.None);
+            pings = pingTask is not null
+                ? await pingTask.ConfigureAwait(false)
+                : addresses.ToDictionary(ip => ip, _ => false);
+
+            HashSet<IPAddress> arpResponders = macs
+                .Where(m => !m.Value.Equals(PhysicalAddress.None))
+                .Select(m => m.Key)
+                .ToHashSet();
+
+            // A successful ping requires the operating system to know the target's MAC address.
+            // Use that fresh ARP-cache entry to supplement missed packet-capture replies, but retain
+            // the separate ARP response state so cache data cannot make a host appear online by itself.
+            if (Options.SendArpRequest && Options.SendPings)
+            {
+                IReadOnlyDictionary<IPAddress, PhysicalAddress> cachedMacs = ArpCacheReader.GetEntries(Interface);
+
+                foreach (IPAddress pingResponder in pings.Where(p => p.Value).Select(p => p.Key))
+                    if (macs[pingResponder].Equals(PhysicalAddress.None)
+                        && cachedMacs.TryGetValue(pingResponder, out PhysicalAddress? cachedMac)
+                        && !cachedMac.Equals(PhysicalAddress.None))
+                        macs[pingResponder] = cachedMac;
+            }
+
+            HashSet<IPAddress> respondingHosts = new(arpResponders);
+            respondingHosts.UnionWith(pings.Where(p => p.Value).Select(p => p.Key));
 
             if (Options.ResolveHostnames)
             {
                 Debug.WriteLine("Resolving all responding hostnames...");
-                hostnames = CreateHostnameResolver().ResolveHostnames(respondingHosts);
+                hostnames = await CreateHostnameResolver().ResolveHostnamesAsync(respondingHosts, cancellationToken)
+                    .ConfigureAwait(false);
             }
             else
-                hostnames = ipAddresses.ToDictionary(ip => ip, ip => string.Empty);
+                hostnames = addresses.ToDictionary(ip => ip, _ => string.Empty);
 
             Debug.WriteLine("Generating scan results...");
 
             IDictionary<IPAddress, IpScanResult> scanResults = new Dictionary<IPAddress, IpScanResult>();
 
-            foreach (IPAddress ip in ipAddresses)
+            foreach (IPAddress ip in addresses)
             {
                 IpScanResult scanResult = new IpScanResult
                 {
@@ -150,11 +194,11 @@ namespace YonatanMankovich.WhatsOnLan.Core
                     WasArpRequested = Options.SendArpRequest
                 };
 
-                if (Options.SendPings && pings.ContainsKey(ip))
-                    scanResult.RespondedToPing = pings[ip];
+                if (Options.SendPings && pings.TryGetValue(ip, out bool respondedToPing))
+                    scanResult.RespondedToPing = respondedToPing;
 
-                if (Options.ResolveHostnames && hostnames.ContainsKey(ip))
-                    scanResult.Hostname = hostnames[ip];
+                if (Options.ResolveHostnames && hostnames.TryGetValue(ip, out string? hostname))
+                    scanResult.Hostname = hostname;
 
                 if (Options.SendArpRequest)
                 {
@@ -163,6 +207,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
                     if (!macAddress.Equals(PhysicalAddress.None))
                     {
                         scanResult.MacAddress = macAddress;
+                        scanResult.RespondedToArp = arpResponders.Contains(ip);
                         scanResult.Manufacturer = Options.OuiMatcher?.GetOrganizationName(macAddress);
                     }
                 }
@@ -171,8 +216,6 @@ namespace YonatanMankovich.WhatsOnLan.Core
             }
 
             Debug.WriteLine("Done generating scan results!");
-
-            IsRunning = false;
 
             return scanResults;
         }
@@ -186,6 +229,12 @@ namespace YonatanMankovich.WhatsOnLan.Core
         public IpScanResult ScanMacAddress(PhysicalAddress macAddress)
             => ScanMacAddresses(new HashSet<PhysicalAddress>(1) { macAddress })[macAddress];
 
+        /// <inheritdoc/>
+        public async Task<IpScanResult> ScanMacAddressAsync(
+            PhysicalAddress macAddress, CancellationToken cancellationToken = default)
+            => (await ScanMacAddressesAsync(new HashSet<PhysicalAddress>(1) { macAddress }, cancellationToken)
+                .ConfigureAwait(false))[macAddress];
+
         /// <summary>
         /// Scans the given <see cref="PhysicalAddress"/>es on the current network <see cref="Interface"/> 
         /// and returns the <see cref="IpScanResult"/>s.
@@ -193,10 +242,21 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <param name="macAddresses">The MAC addresses to scan.</param>
         /// <returns>The <see cref="IpScanResult"/>s.</returns>
         public IDictionary<PhysicalAddress, IpScanResult> ScanMacAddresses(IEnumerable<PhysicalAddress> macAddresses)
-        {
-            IsRunning = true;
+            => ExecuteScan(ScanMacAddressesCoreAsync, macAddresses);
 
-            IDictionary<PhysicalAddress, IpScanResult> results = macAddresses
+        /// <inheritdoc/>
+        public Task<IDictionary<PhysicalAddress, IpScanResult>> ScanMacAddressesAsync(
+            IEnumerable<PhysicalAddress> macAddresses, CancellationToken cancellationToken = default)
+            => ExecuteScanAsync(ct => ScanMacAddressesCoreAsync(macAddresses, ct), cancellationToken);
+
+        private async Task<IDictionary<PhysicalAddress, IpScanResult>> ScanMacAddressesCoreAsync(
+            IEnumerable<PhysicalAddress> macAddresses, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(macAddresses);
+            cancellationToken.ThrowIfCancellationRequested();
+            PhysicalAddress[] addresses = macAddresses.Distinct().ToArray();
+
+            IDictionary<PhysicalAddress, IpScanResult> results = addresses
                 .ToDictionary(mac => mac, mac => new IpScanResult
                 {
                     MacAddress = mac,
@@ -204,7 +264,8 @@ namespace YonatanMankovich.WhatsOnLan.Core
                     WasArpRequested = Options.SendArpRequest
                 });
 
-            IDictionary<PhysicalAddress, IPAddress> macIpAddresses = CreateIpAddressResolver().ResolveIpAddresses(macAddresses);
+            IDictionary<PhysicalAddress, IPAddress> macIpAddresses = CreateIpAddressResolver().ResolveIpAddresses(addresses);
+            cancellationToken.ThrowIfCancellationRequested();
 
             foreach (KeyValuePair<PhysicalAddress, IPAddress> macIpAddress in macIpAddresses)
                 results[macIpAddress.Key].IpAddress = macIpAddress.Value;
@@ -216,15 +277,12 @@ namespace YonatanMankovich.WhatsOnLan.Core
             if (Options.SendArpRequest)
             {
                 // If not found an IP, try scanning the whole network.
-                if (macIpAddresses.Any(ip => ip.Equals(IPAddress.None)))
+                if (macIpAddresses.Any(ip => ip.Value.Equals(IPAddress.None)))
                 {
-                    IsRunning = false;
-
-                    IDictionary<PhysicalAddress, IpScanResult> networkScanResults = ScanNetwork()
+                    IDictionary<PhysicalAddress, IpScanResult> networkScanResults = (await ScanNetworkCoreAsync(cancellationToken)
+                        .ConfigureAwait(false))
                         .Where(r => results.ContainsKey(r.MacAddress)) // Get only relevant results.
                         .ToDictionary(r => r.MacAddress);
-
-                    IsRunning = true;
 
                     foreach (KeyValuePair<PhysicalAddress, IpScanResult> ipScanResult in networkScanResults)
                         results[ipScanResult.Key] = ipScanResult.Value;
@@ -232,14 +290,11 @@ namespace YonatanMankovich.WhatsOnLan.Core
                 }
                 else // If found all IP addresses, reverse scan them.
                 {
-                    IsRunning = false;
-
-                    IEnumerable<IpScanResult> ipScanResults = ScanIpAddresses(validIpAddresses)
+                    IEnumerable<IpScanResult> ipScanResults = (await ScanIpAddressesCoreAsync(validIpAddresses, cancellationToken)
+                        .ConfigureAwait(false))
                         .Select(r => r.Value)
                         .Where(r => !r.MacAddress.Equals(PhysicalAddress.None))
                         .Where(r => results.ContainsKey(r.MacAddress)); // Get only relevant results.
-
-                    IsRunning = true;
 
                     foreach (IpScanResult ipScanResult in ipScanResults)
                         results[ipScanResult.MacAddress] = ipScanResult;
@@ -253,32 +308,84 @@ namespace YonatanMankovich.WhatsOnLan.Core
 
                 if (Options.SendPings)
                 {
-                    IDictionary<IPAddress, bool> pings = CreatePinger().PingIpAddresses(validIpAddresses);
+                    IDictionary<IPAddress, bool> pings = await CreatePinger()
+                        .PingIpAddressesAsync(validIpAddresses, cancellationToken).ConfigureAwait(false);
 
                     foreach (KeyValuePair<IPAddress, bool> ping in pings)
+                    {
+                        resultsByIp[ping.Key].WasPinged = true;
                         resultsByIp[ping.Key].RespondedToPing = ping.Value;
+                    }
                 }
 
                 if (Options.ResolveHostnames)
                 {
-                    IDictionary<IPAddress, string> hostnames = CreateHostnameResolver().ResolveHostnames(validIpAddresses);
+                    IDictionary<IPAddress, string> hostnames = await CreateHostnameResolver()
+                        .ResolveHostnamesAsync(validIpAddresses, cancellationToken).ConfigureAwait(false);
 
                     foreach (KeyValuePair<IPAddress, string> ping in hostnames)
                         resultsByIp[ping.Key].Hostname = ping.Value;
                 }
             }
 
-            IsRunning = false;
-
             return results;
+        }
+
+        private T ExecuteScan<T>(Func<CancellationToken, Task<T>> scan)
+        {
+            return ExecuteScanAsync(
+                cancellationToken => scan(cancellationToken), CancellationToken.None).GetAwaiter().GetResult();
+        }
+
+        private T ExecuteScan<T, TInput>(Func<TInput, CancellationToken, Task<T>> scan, TInput input)
+        {
+            return ExecuteScanAsync(
+                cancellationToken => scan(input, cancellationToken), CancellationToken.None).GetAwaiter().GetResult();
+        }
+
+        private async Task<T> ExecuteScanAsync<T>(
+            Func<CancellationToken, Task<T>> scan, CancellationToken cancellationToken)
+        {
+            StartScan();
+            try
+            {
+                return await scan(cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                StopScan();
+            }
+        }
+
+        private void StartScan()
+        {
+            if (Interlocked.Exchange(ref isRunning, 1) != 0)
+                throw new NetworkScannerRunningException();
+
+            try
+            {
+                StateHasChanged?.Invoke(this, System.EventArgs.Empty);
+            }
+            catch
+            {
+                Volatile.Write(ref isRunning, 0);
+                throw;
+            }
+        }
+
+        private void StopScan()
+        {
+            Volatile.Write(ref isRunning, 0);
+            StateHasChanged?.Invoke(this, System.EventArgs.Empty);
         }
 
         private HostnameResolver CreateHostnameResolver()
         {
             HostnameResolver resolver = new HostnameResolver
             {
-                Retries = Options.Repeats,
+                Retries = Options.HostnameResolverRetries ?? Options.Repeats,
                 Timeout = Options.HostnameResolverTimeout,
+                MaxDegreeOfParallelism = Options.HostnameResolverMaxDegreeOfParallelism,
             };
 
             if (Options.StripDnsSuffix)
@@ -291,8 +398,9 @@ namespace YonatanMankovich.WhatsOnLan.Core
         {
             return new Pinger
             {
-                Retries = Options.Repeats,
+                Retries = Options.PingerRetries ?? Options.Repeats,
                 Timeout = Options.PingerTimeout,
+                MaxDegreeOfParallelism = Options.PingerMaxDegreeOfParallelism,
             };
         }
 
@@ -301,7 +409,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
             return new MacAddressResolver(Interface)
             {
                 Timeout = Options.ArpTimeout,
-                Retries = Options.Repeats
+                Retries = Options.ArpRetries ?? Options.Repeats
             };
         }
 

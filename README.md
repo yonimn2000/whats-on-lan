@@ -44,10 +44,12 @@ foreach (PcapNetworkInterface networkInterface in networkInterfaces)
             ResolveHostnames = true,
             StripDnsSuffix = true,
             ShuffleIpAddresses = true,
-            Repeats = 5,
+            ArpRetries = 5,
+            PingerRetries = 2,
+            HostnameResolverRetries = 1,
             ArpTimeout = TimeSpan.FromSeconds(1),
-            HostnameResolverTimeout = TimeSpan.FromSeconds(3),
-            PingerTimeout = TimeSpan.FromMilliseconds(250),
+            HostnameResolverTimeout = TimeSpan.FromSeconds(1),
+            PingerTimeout = TimeSpan.FromMilliseconds(500),
         }
     };
 

@@ -44,9 +44,19 @@ namespace YonatanMankovich.WhatsOnLan.Core
         public TimeSpan HostnameResolverTimeout { get; set; } = TimeSpan.FromSeconds(1);
 
         /// <summary>
+        /// Gets or sets the maximum number of concurrent hostname resolutions.
+        /// </summary>
+        public int HostnameResolverMaxDegreeOfParallelism { get; set; } = 128;
+
+        /// <summary>
         /// Gets or sets the timeout of waiting for ping responses.
         /// </summary>
         public TimeSpan PingerTimeout { get; set; } = TimeSpan.FromSeconds(1);
+
+        /// <summary>
+        /// Gets or sets the maximum number of concurrent ping operations.
+        /// </summary>
+        public int PingerMaxDegreeOfParallelism { get; set; } = 256;
 
         /// <summary>
         /// Gets or sets an OUI matcher for matching MAC addresses to the corresponding organization name 
@@ -58,7 +68,26 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// Gets or sets the number of times the network should be scanned consecutively.
         /// The higher the number of repeats, the more hosts can be discovered
         /// because not all network hosts will respond to each scan.
+        /// This value is used when a probe-specific retry setting is not supplied.
         /// </summary>
         public int Repeats { get; set; } = 1;
+
+        /// <summary>
+        /// Gets or sets the number of ARP probe attempts. When <see langword="null"/>,
+        /// <see cref="Repeats"/> is used.
+        /// </summary>
+        public int? ArpRetries { get; set; }
+
+        /// <summary>
+        /// Gets or sets the number of ping attempts. When <see langword="null"/>,
+        /// <see cref="Repeats"/> is used.
+        /// </summary>
+        public int? PingerRetries { get; set; }
+
+        /// <summary>
+        /// Gets or sets the number of hostname-resolution attempts. When <see langword="null"/>,
+        /// <see cref="Repeats"/> is used.
+        /// </summary>
+        public int? HostnameResolverRetries { get; set; }
     }
 }

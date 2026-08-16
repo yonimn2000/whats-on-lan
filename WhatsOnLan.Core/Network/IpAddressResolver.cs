@@ -1,7 +1,5 @@
-﻿using System.Diagnostics;
-using System.Net;
+﻿using System.Net;
 using System.Net.NetworkInformation;
-using System.Text.RegularExpressions;
 using YonatanMankovich.WhatsOnLan.Core.Hardware;
 
 namespace YonatanMankovich.WhatsOnLan.Core.Network
@@ -30,7 +28,7 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
         /// <returns>The mapped <see cref="PhysicalAddress"/>.</returns>
         public IPAddress ResolveIpAddress(PhysicalAddress macAddress)
         {
-            return ResolveIpAddresses(new PhysicalAddress[] { macAddress })[macAddress];
+            return ResolveIpAddresses([macAddress])[macAddress];
         }
 
         /// <summary>
@@ -43,7 +41,9 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
         /// <returns>The mapped <see cref="PhysicalAddress"/>es as an <see cref="IDictionary{TKey, TValue}"/>.</returns>
         public IDictionary<PhysicalAddress, IPAddress> ResolveIpAddresses(IEnumerable<PhysicalAddress> macAddresses)
         {
-            Dictionary<PhysicalAddress, IPAddress> resolutions = macAddresses.ToDictionary(mac => mac, mac => IPAddress.None);
+            ArgumentNullException.ThrowIfNull(macAddresses);
+            PhysicalAddress[] addresses = macAddresses.Distinct().ToArray();
+            Dictionary<PhysicalAddress, IPAddress> resolutions = addresses.ToDictionary(mac => mac, _ => IPAddress.None);
 
             // Add the IP of the current device to the dictionary.
             if (resolutions.ContainsKey(NetworkInterface.MacAddress))
@@ -54,34 +54,11 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
             return resolutions;
         }
 
-        private static void GetArpMacIps(IDictionary<PhysicalAddress, IPAddress> mip)
+        private void GetArpMacIps(IDictionary<PhysicalAddress, IPAddress> mip)
         {
-            Process process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "arp",
-                    Arguments = OperatingSystem.IsWindows() ? "-a" : "-e -n",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true,
-                }
-            };
-
-            process.Start();
-
-            string cmdOutput = process.StandardOutput.ReadToEnd();
-            string pattern = OperatingSystem.IsWindows()
-                ? @"(?<ip>([0-9]{1,3}\.?){4})\s*(?<mac>([a-f0-9]{2}-?){6})"
-                : @"(?<ip>([0-9]{1,3}\.?){4}).*(?<mac>([a-f0-9]{2}:?){6})";
-
-            foreach (Match m in Regex.Matches(cmdOutput, pattern, RegexOptions.IgnoreCase).Cast<Match>())
-            {
-                PhysicalAddress mac = PhysicalAddress.Parse(m.Groups["mac"].Value);
-
-                if (mip.ContainsKey(mac) && mip[mac] == IPAddress.None)
-                    mip[mac] = IPAddress.Parse(m.Groups["ip"].Value);
-            }
+            foreach (KeyValuePair<IPAddress, PhysicalAddress> entry in ArpCacheReader.GetEntries(NetworkInterface))
+                if (mip.TryGetValue(entry.Value, out IPAddress? currentIp) && currentIp.Equals(IPAddress.None))
+                    mip[entry.Value] = entry.Key;
         }
     }
 }

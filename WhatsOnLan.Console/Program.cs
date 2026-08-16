@@ -74,10 +74,12 @@ do
                 ResolveHostnames = true,
                 StripDnsSuffix = true,
                 ShuffleIpAddresses = true,
-                Repeats = 5,
+                ArpRetries = 5,
+                PingerRetries = 2,
+                HostnameResolverRetries = 1,
                 ArpTimeout = TimeSpan.FromSeconds(1),
-                HostnameResolverTimeout = TimeSpan.FromSeconds(3),
-                PingerTimeout = TimeSpan.FromMilliseconds(250),
+                HostnameResolverTimeout = TimeSpan.FromSeconds(1),
+                PingerTimeout = TimeSpan.FromMilliseconds(500),
             }
         };
 
@@ -91,15 +93,16 @@ do
         /**************** Write the results in a neat table. *******************/
 
         // First number is the number of the params later. Minus is left align. Last number is the column width.
-        string format = " {0,-16}| {1,-18}| {2,-5}| {3,-25}| {4}";
+        string format = " {0,-16}| {1,-18}| {2,-5}| {3,-5}| {4,-25}| {5}";
         Console.WriteLine($"\n{results.Count} devices found:\n");
-        Console.WriteLine(string.Format(format, "IP", "MAC", "Ping", "Hostname", "Manufacturer")); // Headers
-        Console.WriteLine(new string('-', format.Length + 16 + 18 + 25)); // Draw a line --------- under the headers.
+        Console.WriteLine(string.Format(format, "IP", "MAC", "ARP", "Ping", "Hostname", "Manufacturer")); // Headers
+        Console.WriteLine(new string('-', format.Length + 16 + 18 + 5 + 5 + 25)); // Draw a line --------- under the headers.
 
         // Write the results themselves.
         foreach (IpScanResult result in results)
             Console.WriteLine(string.Format(format, result.IpAddress.ToSortableString(), result.MacAddress.ToColonString(),
-                result.RespondedToPing ? "Yes" : "No", result.Hostname, result.Manufacturer));
+                result.RespondedToArp ? "Yes" : "No", result.RespondedToPing ? "Yes" : "No",
+                result.Hostname, result.Manufacturer));
     }
 
     Console.WriteLine(Environment.NewLine + "Press ENTER to scan again. Press Q and ENTER to exit.");

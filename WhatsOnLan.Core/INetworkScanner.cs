@@ -26,11 +26,28 @@ namespace YonatanMankovich.WhatsOnLan.Core
         IpScanResult ScanIpAddress(IPAddress ipAddress);
 
         /// <summary>
+        /// Scans the given <see cref="IPAddress"/> asynchronously.
+        /// </summary>
+        /// <param name="ipAddress">The IP address to scan.</param>
+        /// <param name="cancellationToken">The token used to cancel the scan.</param>
+        /// <returns>The <see cref="IpScanResult"/>.</returns>
+        Task<IpScanResult> ScanIpAddressAsync(IPAddress ipAddress, CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Scans the given <see cref="IPAddress"/>es and returns the <see cref="IpScanResult"/>s.
         /// </summary>
         /// <param name="ipAddresses">The IP addresses to scan.</param>
         /// <returns>The <see cref="IpScanResult"/>s.</returns>
         IDictionary<IPAddress, IpScanResult> ScanIpAddresses(IEnumerable<IPAddress> ipAddresses);
+
+        /// <summary>
+        /// Scans the given <see cref="IPAddress"/>es asynchronously.
+        /// </summary>
+        /// <param name="ipAddresses">The IP addresses to scan.</param>
+        /// <param name="cancellationToken">The token used to cancel the scan.</param>
+        /// <returns>The <see cref="IpScanResult"/>s.</returns>
+        Task<IDictionary<IPAddress, IpScanResult>> ScanIpAddressesAsync(
+            IEnumerable<IPAddress> ipAddresses, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Scans the given <see cref="PhysicalAddress"/> and returns the <see cref="IpScanResult"/>.
@@ -40,6 +57,14 @@ namespace YonatanMankovich.WhatsOnLan.Core
         IpScanResult ScanMacAddress(PhysicalAddress macAddress);
 
         /// <summary>
+        /// Scans the given <see cref="PhysicalAddress"/> asynchronously.
+        /// </summary>
+        /// <param name="macAddress">The MAC address to scan.</param>
+        /// <param name="cancellationToken">The token used to cancel the scan.</param>
+        /// <returns>The <see cref="IpScanResult"/>.</returns>
+        Task<IpScanResult> ScanMacAddressAsync(PhysicalAddress macAddress, CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Scans the given <see cref="PhysicalAddress"/>es and returns the <see cref="IpScanResult"/>s.
         /// </summary>
         /// <param name="macAddresses">The MAC addresses to scan.</param>
@@ -47,10 +72,26 @@ namespace YonatanMankovich.WhatsOnLan.Core
         IDictionary<PhysicalAddress, IpScanResult> ScanMacAddresses(IEnumerable<PhysicalAddress> macAddresses);
 
         /// <summary>
+        /// Scans the given <see cref="PhysicalAddress"/>es asynchronously.
+        /// </summary>
+        /// <param name="macAddresses">The MAC addresses to scan.</param>
+        /// <param name="cancellationToken">The token used to cancel the scan.</param>
+        /// <returns>The <see cref="IpScanResult"/>s.</returns>
+        Task<IDictionary<PhysicalAddress, IpScanResult>> ScanMacAddressesAsync(
+            IEnumerable<PhysicalAddress> macAddresses, CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Scans all the possible IP addresses on the network.
         /// </summary>
         /// <returns>The <see cref="IpScanResult"/>s of the network scan.</returns>
         ICollection<IpScanResult> ScanNetwork();
+
+        /// <summary>
+        /// Scans all possible IP addresses on the network asynchronously.
+        /// </summary>
+        /// <param name="cancellationToken">The token used to cancel the scan.</param>
+        /// <returns>The <see cref="IpScanResult"/>s of the network scan.</returns>
+        Task<ICollection<IpScanResult>> ScanNetworkAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Checks if the provided <see cref="IPAddress"/> is on the network of the scanner.

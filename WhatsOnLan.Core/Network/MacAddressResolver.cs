@@ -1,5 +1,6 @@
 ﻿using PacketDotNet;
 using SharpPcap;
+using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
 using YonatanMankovich.WhatsOnLan.Core.Hardware;
@@ -43,7 +44,7 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
         /// <returns>The mapped <see cref="PhysicalAddress"/>.</returns>
         public PhysicalAddress ResolveMacAddress(IPAddress ipAddress)
         {
-            return ResolveMacAddresses(new IPAddress[] { ipAddress })[ipAddress];
+            return ResolveMacAddresses([ipAddress])[ipAddress];
         }
 
         /// <summary>
@@ -56,27 +57,44 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
         /// <returns>The mapped <see cref="IPAddress"/>es as an <see cref="IDictionary{TKey, TValue}"/>.</returns>
         public IDictionary<IPAddress, PhysicalAddress> ResolveMacAddresses(IEnumerable<IPAddress> ipAddresses)
         {
-            Dictionary<IPAddress, PhysicalAddress> resolutions = ipAddresses.ToDictionary(ip => ip, ip => PhysicalAddress.None);
+            ArgumentNullException.ThrowIfNull(ipAddresses);
+            IPAddress[] addresses = ipAddresses.Distinct().ToArray();
+            Dictionary<IPAddress, PhysicalAddress> resolutions = addresses.ToDictionary(ip => ip, _ => PhysicalAddress.None);
 
             // Add the MAC of the current device to the dictionary.
             if (resolutions.ContainsKey(NetworkInterface.IpAddress))
                 resolutions[NetworkInterface.IpAddress] = NetworkInterface.MacAddress;
 
-            // Start listening on the device.
-            NetworkInterface.Device.Open(mode: DeviceModes.Promiscuous, read_timeout: 20);
-
-            // Create a "tcpdump" filter for allowing only arp replies to be read.
-            NetworkInterface.Device.Filter = "arp and ether dst " + NetworkInterface.MacAddress.ToString();
-
-            int tries = 0;
-            do
+            bool isOpen = false;
+            try
             {
-                MapIpAddressesToMacAddresses(resolutions);
-                tries++;
-            } while (tries < Retries && resolutions.Any(r => r.Value == PhysicalAddress.None)); // Any unresolved IP addresses.
+                // Start listening on the device.
+                NetworkInterface.Device.Open(new DeviceConfiguration
+                {
+                    Mode = DeviceModes.Promiscuous,
+                    ReadTimeout = 20,
+                    BufferSize = 4 * 1024 * 1024
+                });
+                isOpen = true;
 
-            NetworkInterface.Device.Close();
-            return resolutions;
+                // Allow only ARP replies addressed to this adapter.
+                NetworkInterface.Device.Filter = "arp and arp[6:2] = 2 and ether dst " + NetworkInterface.MacAddress.ToString();
+
+                int tries = 0;
+                int retries = Math.Max(1, Retries);
+                do
+                {
+                    MapIpAddressesToMacAddresses(resolutions);
+                    tries++;
+                } while (tries < retries && resolutions.Any(r => r.Value.Equals(PhysicalAddress.None)));
+
+                return resolutions;
+            }
+            finally
+            {
+                if (isOpen)
+                    NetworkInterface.Device.Close();
+            }
         }
 
         private void MapIpAddressesToMacAddresses(IDictionary<IPAddress, PhysicalAddress> resolutions)
@@ -84,26 +102,35 @@ namespace YonatanMankovich.WhatsOnLan.Core.Network
             IReadOnlyCollection<IPAddress> unresolvedIpAddresses
                 = resolutions.Where(r => r.Value == PhysicalAddress.None).Select(kvp => kvp.Key).ToList();
 
-            foreach (Packet requestPacket in unresolvedIpAddresses.Select(ip => BuildArpRequestPacket(ip)))
+            if (unresolvedIpAddresses.Count == 0)
+                return;
+
+            foreach (Packet requestPacket in unresolvedIpAddresses.Select(BuildArpRequestPacket))
                 NetworkInterface.Device.SendPacket(requestPacket);
 
             int numberOfipAddressesToResolve = unresolvedIpAddresses.Count;
 
             // Attempt to resolve the addresses with the current timeout.
-            DateTime timeoutDateTime = DateTime.Now + Timeout;
-            while (DateTime.Now < timeoutDateTime)
+            if (Timeout <= TimeSpan.Zero)
+                throw new ArgumentOutOfRangeException(nameof(Timeout), "The timeout must be greater than zero.");
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            while (stopwatch.Elapsed < Timeout)
             {
                 // Read the next packet from the network.
                 if (NetworkInterface.Device.GetNextPacket(out PacketCapture packetCapture) == GetPacketStatus.PacketRead)
                 {
                     RawCapture reply = packetCapture.GetPacket();
 
-                    // Parse and check if this is an arp packet.
+                    // Accept only a reply to an ARP request made by this adapter.
                     ArpPacket arpPacket = Packet.ParsePacket(reply.LinkLayerType, reply.Data).Extract<ArpPacket>();
-                    if (arpPacket != null)
+                    if (arpPacket?.Operation == ArpOperation.Response
+                        && arpPacket.TargetProtocolAddress.Equals(NetworkInterface.IpAddress)
+                        && arpPacket.TargetHardwareAddress.Equals(NetworkInterface.MacAddress))
                     {
                         // If this is the reply we are looking for, add the result to the dictionary.
-                        if (resolutions.ContainsKey(arpPacket.SenderProtocolAddress))
+                        if (resolutions.TryGetValue(arpPacket.SenderProtocolAddress, out PhysicalAddress? currentMac)
+                            && currentMac.Equals(PhysicalAddress.None))
                         {
                             resolutions[arpPacket.SenderProtocolAddress] = arpPacket.SenderHardwareAddress;
                             numberOfipAddressesToResolve--;
