@@ -8,6 +8,31 @@ namespace YonatanMankovich.WhatsOnLan.Core
     public class NetworkScannerOptions
     {
         /// <summary>
+        /// The default maximum number of concurrent hostname resolutions.
+        /// </summary>
+        public const int DefaultHostnameResolverMaxDegreeOfParallelism = 128;
+
+        /// <summary>
+        /// The default maximum number of concurrent ping operations.
+        /// </summary>
+        public const int DefaultPingerMaxDegreeOfParallelism = 256;
+
+        /// <summary>
+        /// The default number of ARP probe attempts.
+        /// </summary>
+        public const int DefaultArpRetries = 5;
+
+        /// <summary>
+        /// The default number of ping attempts.
+        /// </summary>
+        public const int DefaultPingerRetries = 2;
+
+        /// <summary>
+        /// The default number of hostname-resolution attempts.
+        /// </summary>
+        public const int DefaultHostnameResolverRetries = 1;
+
+        /// <summary>
         /// Indicates whether to send pings to hosts during the scan.
         /// </summary>
         public bool SendPings { get; set; } = true;
@@ -46,7 +71,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <summary>
         /// Gets or sets the maximum number of concurrent hostname resolutions.
         /// </summary>
-        public int HostnameResolverMaxDegreeOfParallelism { get; set; } = 128;
+        public int HostnameResolverMaxDegreeOfParallelism { get; set; } = DefaultHostnameResolverMaxDegreeOfParallelism;
 
         /// <summary>
         /// Gets or sets the timeout of waiting for ping responses.
@@ -56,7 +81,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <summary>
         /// Gets or sets the maximum number of concurrent ping operations.
         /// </summary>
-        public int PingerMaxDegreeOfParallelism { get; set; } = 256;
+        public int PingerMaxDegreeOfParallelism { get; set; } = DefaultPingerMaxDegreeOfParallelism;
 
         /// <summary>
         /// Gets or sets an OUI matcher for matching MAC addresses to the corresponding organization name 
@@ -65,29 +90,18 @@ namespace YonatanMankovich.WhatsOnLan.Core
         public IOuiMatcher? OuiMatcher { get; set; }
 
         /// <summary>
-        /// Gets or sets the number of times the network should be scanned consecutively.
-        /// The higher the number of repeats, the more hosts can be discovered
-        /// because not all network hosts will respond to each scan.
-        /// This value is used when a probe-specific retry setting is not supplied.
+        /// Gets or sets the number of ARP probe attempts.
         /// </summary>
-        public int Repeats { get; set; } = 1;
+        public int ArpRetries { get; set; } = DefaultArpRetries;
 
         /// <summary>
-        /// Gets or sets the number of ARP probe attempts. When <see langword="null"/>,
-        /// <see cref="Repeats"/> is used.
+        /// Gets or sets the number of ping attempts.
         /// </summary>
-        public int? ArpRetries { get; set; }
+        public int PingerRetries { get; set; } = DefaultPingerRetries;
 
         /// <summary>
-        /// Gets or sets the number of ping attempts. When <see langword="null"/>,
-        /// <see cref="Repeats"/> is used.
+        /// Gets or sets the number of hostname-resolution attempts.
         /// </summary>
-        public int? PingerRetries { get; set; }
-
-        /// <summary>
-        /// Gets or sets the number of hostname-resolution attempts. When <see langword="null"/>,
-        /// <see cref="Repeats"/> is used.
-        /// </summary>
-        public int? HostnameResolverRetries { get; set; }
+        public int HostnameResolverRetries { get; set; } = DefaultHostnameResolverRetries;
     }
 }

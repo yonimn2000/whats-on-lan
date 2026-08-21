@@ -383,7 +383,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
         {
             HostnameResolver resolver = new HostnameResolver
             {
-                Retries = Options.HostnameResolverRetries ?? Options.Repeats,
+                Retries = Options.HostnameResolverRetries,
                 Timeout = Options.HostnameResolverTimeout,
                 MaxDegreeOfParallelism = Options.HostnameResolverMaxDegreeOfParallelism,
             };
@@ -398,7 +398,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
         {
             return new Pinger
             {
-                Retries = Options.PingerRetries ?? Options.Repeats,
+                Retries = Options.PingerRetries,
                 Timeout = Options.PingerTimeout,
                 MaxDegreeOfParallelism = Options.PingerMaxDegreeOfParallelism,
             };
@@ -409,7 +409,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
             return new MacAddressResolver(Interface)
             {
                 Timeout = Options.ArpTimeout,
-                Retries = Options.ArpRetries ?? Options.Repeats
+                Retries = Options.ArpRetries
             };
         }
 
