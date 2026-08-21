@@ -14,6 +14,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
     public class NetworkScanners : IEnumerable<INetworkScanner>, INetworkScanner
     {
         private int isRunning;
+        private readonly object scannersLock = new();
 
         /// <summary>
         /// A set of <see cref="INetworkScanner"/> objects.
@@ -28,6 +29,11 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <inheritdoc/>
         public bool IsRunning => Volatile.Read(ref isRunning) != 0;
 
+        /// <summary>
+        /// Gets a value indicating whether at least one network interface is configured.
+        /// </summary>
+        public bool HasConfiguredInterfaces => GetScannersSnapshot().Length > 0;
+
         /// <inheritdoc/>
         public event EventHandler? StateHasChanged;
 
@@ -36,17 +42,39 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// </summary>
         public void InitializeWithAllActiveInterfaces()
         {
-            foreach (PcapNetworkInterface iface in NetworkInterfaceHelpers.GetAllDistinctPcapNetworkInterfaces())
-                Scanners.Add(new NetworkScanner(iface)
+            Configure(NetworkInterfaceHelpers.GetAllDistinctPcapNetworkInterfaces(), Options);
+        }
+
+        /// <summary>
+        /// Replaces the network interfaces used by this scanner collection.
+        /// </summary>
+        public void Configure(
+            IEnumerable<PcapNetworkInterface> interfaces,
+            NetworkScannerOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(interfaces);
+            ArgumentNullException.ThrowIfNull(options);
+
+            HashSet<INetworkScanner> scanners = interfaces
+                .Select(iface => (INetworkScanner)new NetworkScanner(iface)
                 {
-                    Options = Options
-                });
+                    Options = options
+                })
+                .ToHashSet();
+
+            lock (scannersLock)
+            {
+                Options = options;
+                Scanners = scanners;
+            }
+
+            StateHasChanged?.Invoke(this, System.EventArgs.Empty);
         }
 
         /// <inheritdoc/>
         public bool IsIpAddressOnScannerNetwork(IPAddress ipAddress)
         {
-            foreach (INetworkScanner scanner in Scanners)
+            foreach (INetworkScanner scanner in GetScannersSnapshot())
                 if (scanner.IsIpAddressOnScannerNetwork(ipAddress))
                     return true;
 
@@ -63,7 +91,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
 
         private async Task<ICollection<IpScanResult>> ScanNetworkCoreAsync(CancellationToken cancellationToken)
         {
-            INetworkScanner[] scanners = Scanners.ToArray();
+            INetworkScanner[] scanners = GetScannersSnapshot();
             ICollection<IpScanResult>[] scannerResults = await Task.WhenAll(
                 scanners.Select(scanner => StartScannerOperation(
                     () => scanner.ScanNetworkAsync(cancellationToken), cancellationToken))).ConfigureAwait(false);
@@ -102,7 +130,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
             // Assign each IP address to its corresponding network scanner.
             foreach (IPAddress ipAddress in addresses)
             {
-                INetworkScanner? scanner = Scanners.FirstOrDefault(s => s.IsIpAddressOnScannerNetwork(ipAddress))
+                INetworkScanner? scanner = GetScannersSnapshot().FirstOrDefault(s => s.IsIpAddressOnScannerNetwork(ipAddress))
                     ?? throw new IpAddressNotOnNetworkException(ipAddress);
 
                 if (!scannerIps.ContainsKey(scanner))
@@ -153,7 +181,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
             PhysicalAddress[] addresses = macAddresses.Distinct().ToArray();
 
             IDictionary<PhysicalAddress, IpScanResult>[] scannerResults = await Task.WhenAll(
-                Scanners.ToArray().Select(scanner => StartScannerOperation(
+                GetScannersSnapshot().Select(scanner => StartScannerOperation(
                     () => scanner.ScanMacAddressesAsync(addresses, cancellationToken), cancellationToken)))
                 .ConfigureAwait(false);
             ConcurrentDictionary<PhysicalAddress, IpScanResult> results = new();
@@ -223,8 +251,14 @@ namespace YonatanMankovich.WhatsOnLan.Core
         }
 
         /// <inheritdoc/>
-        public IEnumerator<INetworkScanner> GetEnumerator() => Scanners.GetEnumerator();
+        public IEnumerator<INetworkScanner> GetEnumerator() => ((IEnumerable<INetworkScanner>)GetScannersSnapshot()).GetEnumerator();
 
-        IEnumerator IEnumerable.GetEnumerator() => Scanners.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetScannersSnapshot().GetEnumerator();
+
+        private INetworkScanner[] GetScannersSnapshot()
+        {
+            lock (scannersLock)
+                return Scanners.ToArray();
+        }
     }
 }
