@@ -7,6 +7,8 @@ namespace YonatanMankovich.WhatsOnLan.Core.OUI
     /// </summary>
     public class OuiCsvDownloader
     {
+        private const long MaxDownloadBytes = 10 * 1024 * 1024;
+
         /// <summary>
         /// The URL of the IEEE OUI CSV file.
         /// </summary>
@@ -69,23 +71,26 @@ namespace YonatanMankovich.WhatsOnLan.Core.OUI
             {
                 response.EnsureSuccessStatusCode();
                 var contentLength = response.Content.Headers.ContentLength;
+                if (contentLength > MaxDownloadBytes)
+                    throw new InvalidDataException($"The OUI CSV download exceeds the {MaxDownloadBytes / (1024 * 1024)} MB limit.");
+
                 using (var download = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
                 {
                     // no progress... no contentLength... very sad
                     if (progress is null || !contentLength.HasValue)
                     {
-                        await download.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+                        await CopyToAsync(download, destination, 81920, maxBytes: MaxDownloadBytes, cancellationToken: cancellationToken).ConfigureAwait(false);
                         return;
                     }
                     // Such progress and contentLength much reporting Wow!
                     var progressWrapper = new Progress<long>(totalBytes
                         => progress.Report((int)Math.Round(100 * (double)totalBytes / contentLength.Value)));
-                    await CopyToAsync(download, destination, 81920, progressWrapper, cancellationToken).ConfigureAwait(false);
+                    await CopyToAsync(download, destination, 81920, progressWrapper, MaxDownloadBytes, cancellationToken).ConfigureAwait(false);
                 }
             }
         }
 
-        private static async Task CopyToAsync(Stream source, Stream destination, int bufferSize, IProgress<long>? progress = null, CancellationToken cancellationToken = default(CancellationToken))
+        private static async Task CopyToAsync(Stream source, Stream destination, int bufferSize, IProgress<long>? progress = null, long maxBytes = long.MaxValue, CancellationToken cancellationToken = default(CancellationToken))
         {
             if (bufferSize <= 0)
                 throw new ArgumentOutOfRangeException(nameof(bufferSize));
@@ -103,6 +108,9 @@ namespace YonatanMankovich.WhatsOnLan.Core.OUI
             int bytesRead;
             while ((bytesRead = await source.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false)) != 0)
             {
+                if (totalBytesRead + bytesRead > maxBytes)
+                    throw new InvalidDataException($"The OUI CSV download exceeds the {maxBytes / (1024 * 1024)} MB limit.");
+
                 await destination.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
                 totalBytesRead += bytesRead;
                 progress?.Report(totalBytesRead);
