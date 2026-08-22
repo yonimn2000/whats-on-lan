@@ -72,6 +72,19 @@ namespace YonatanMankovich.WhatsOnLan.Core
         private async Task<ICollection<IpScanResult>> ScanNetworkCoreAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (Options.MaxScannableHosts <= 0)
+                throw new InvalidOperationException("MaxScannableHosts must be greater than zero.");
+
+            int hostCount = Interface.NumberOfScannableHosts;
+            if (hostCount < 0)
+                throw new InvalidOperationException(
+                    $"The network {Interface.Network}/{Interface.SubnetMask} is too large to scan safely.");
+
+            if (hostCount > Options.MaxScannableHosts)
+                throw new InvalidOperationException(
+                    $"The network {Interface.Network}/{Interface.SubnetMask} contains {hostCount:N0} hosts, "
+                    + $"which exceeds the configured scan limit of {Options.MaxScannableHosts:N0}.");
+
             Debug.WriteLine("Getting all reachable IP addresses...");
             IPAddress[] ipAddresses = Interface.GetAllNetworkHostIpAddresses().ToArray();
             Debug.WriteLine($"{ipAddresses.Length:N0} possible hosts on the {Interface.Network} network.");
@@ -122,7 +135,9 @@ namespace YonatanMankovich.WhatsOnLan.Core
             IDictionary<IPAddress, string> hostnames;
 
             if (Options.ShuffleIpAddresses)
-                addresses = addresses.OrderBy(_ => Guid.NewGuid()).ToArray();
+            {
+                Random.Shared.Shuffle(addresses);
+            }
 
             Task<IDictionary<IPAddress, PhysicalAddress>>? macResolutionTask = null;
             Task<IDictionary<IPAddress, bool>>? pingTask = null;

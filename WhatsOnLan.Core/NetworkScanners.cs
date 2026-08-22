@@ -124,13 +124,14 @@ namespace YonatanMankovich.WhatsOnLan.Core
             ArgumentNullException.ThrowIfNull(ipAddresses);
             cancellationToken.ThrowIfCancellationRequested();
             IPAddress[] addresses = ipAddresses.Distinct().ToArray();
+            INetworkScanner[] scanners = GetScannersSnapshot();
 
             IDictionary<INetworkScanner, ISet<IPAddress>> scannerIps = new Dictionary<INetworkScanner, ISet<IPAddress>>();
 
             // Assign each IP address to its corresponding network scanner.
             foreach (IPAddress ipAddress in addresses)
             {
-                INetworkScanner? scanner = GetScannersSnapshot().FirstOrDefault(s => s.IsIpAddressOnScannerNetwork(ipAddress))
+                INetworkScanner? scanner = scanners.FirstOrDefault(s => s.IsIpAddressOnScannerNetwork(ipAddress))
                     ?? throw new IpAddressNotOnNetworkException(ipAddress);
 
                 if (!scannerIps.ContainsKey(scanner))
@@ -179,9 +180,10 @@ namespace YonatanMankovich.WhatsOnLan.Core
             ArgumentNullException.ThrowIfNull(macAddresses);
             cancellationToken.ThrowIfCancellationRequested();
             PhysicalAddress[] addresses = macAddresses.Distinct().ToArray();
+            INetworkScanner[] scanners = GetScannersSnapshot();
 
             IDictionary<PhysicalAddress, IpScanResult>[] scannerResults = await Task.WhenAll(
-                GetScannersSnapshot().Select(scanner => StartScannerOperation(
+                scanners.Select(scanner => StartScannerOperation(
                     () => scanner.ScanMacAddressesAsync(addresses, cancellationToken), cancellationToken)))
                 .ConfigureAwait(false);
             ConcurrentDictionary<PhysicalAddress, IpScanResult> results = new();

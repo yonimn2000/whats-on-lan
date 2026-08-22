@@ -13,6 +13,11 @@ namespace YonatanMankovich.WhatsOnLan.Core
         public const int DefaultHostnameResolverMaxDegreeOfParallelism = 128;
 
         /// <summary>
+        /// The default maximum number of hosts allowed in a full network scan.
+        /// </summary>
+        public const int DefaultMaxScannableHosts = 65_534;
+
+        /// <summary>
         /// The default maximum number of concurrent ping operations.
         /// </summary>
         public const int DefaultPingerMaxDegreeOfParallelism = 256;
@@ -57,6 +62,11 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// Indicates whether to shuffle IP addresses during the scan.
         /// </summary>
         public bool ShuffleIpAddresses { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets the maximum number of hosts a full scan may enumerate.
+        /// </summary>
+        public int MaxScannableHosts { get; set; } = DefaultMaxScannableHosts;
 
         /// <summary>
         /// Gets or sets the timeout of waiting for ARP responses from network hosts.
