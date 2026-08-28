@@ -15,7 +15,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
         /// <summary>
         /// The default maximum number of hosts allowed in a full network scan.
         /// </summary>
-        public const int DefaultMaxScannableHosts = 65_534;
+        public const int DefaultMaxScannableHosts = 65_534; // The maximum number of hosts in a /16 subnet.
 
         /// <summary>
         /// The default maximum number of concurrent ping operations.
@@ -65,8 +65,9 @@ namespace YonatanMankovich.WhatsOnLan.Core
 
         /// <summary>
         /// Gets or sets the maximum number of hosts a full scan may enumerate.
+        /// A null value explicitly opts in to unlimited scanning.
         /// </summary>
-        public int MaxScannableHosts { get; set; } = DefaultMaxScannableHosts;
+        public int? MaxScannableHosts { get; set; } = DefaultMaxScannableHosts;
 
         /// <summary>
         /// Gets or sets the timeout of waiting for ARP responses from network hosts.

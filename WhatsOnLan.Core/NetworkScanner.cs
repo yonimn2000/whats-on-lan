@@ -72,7 +72,7 @@ namespace YonatanMankovich.WhatsOnLan.Core
         private async Task<ICollection<IpScanResult>> ScanNetworkCoreAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (Options.MaxScannableHosts <= 0)
+            if (Options.MaxScannableHosts is <= 0)
                 throw new InvalidOperationException("MaxScannableHosts must be greater than zero.");
 
             int hostCount = Interface.NumberOfScannableHosts;
@@ -80,10 +80,10 @@ namespace YonatanMankovich.WhatsOnLan.Core
                 throw new InvalidOperationException(
                     $"The network {Interface.Network}/{Interface.SubnetMask} is too large to scan safely.");
 
-            if (hostCount > Options.MaxScannableHosts)
+            if (Options.MaxScannableHosts is int maxScannableHosts && hostCount > maxScannableHosts)
                 throw new InvalidOperationException(
                     $"The network {Interface.Network}/{Interface.SubnetMask} contains {hostCount:N0} hosts, "
-                    + $"which exceeds the configured scan limit of {Options.MaxScannableHosts:N0}.");
+                    + $"which exceeds the configured scan limit of {maxScannableHosts:N0}.");
 
             Debug.WriteLine("Getting all reachable IP addresses...");
             IPAddress[] ipAddresses = Interface.GetAllNetworkHostIpAddresses().ToArray();
